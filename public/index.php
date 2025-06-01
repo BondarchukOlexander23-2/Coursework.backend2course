@@ -1,15 +1,23 @@
 <?php
 
+// Підключення класів
+require_once '../app/Database/Database.php';
+require_once '../app/Models/User.php';
 require_once '../app/Router.php';
 require_once '../app/Controllers/HomeController.php';
 require_once '../app/Controllers/SurveyController.php';
 require_once '../app/Controllers/AuthController.php';
 
+// Включення виведення помилок для розробки
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-$router = new Router();
+// Перевірка підключення до бази даних
+if (!Database::testConnection()) {
+    die('Не вдалося підключитися до бази даних. Перевірте налаштування.');
+}
 
+$router = new Router();
 
 // Головна сторінка
 $router->get('/', 'HomeController', 'index');
@@ -27,12 +35,12 @@ $router->get('/login', 'AuthController', 'showLogin');
 $router->post('/login', 'AuthController', 'login');
 $router->get('/register', 'AuthController', 'showRegister');
 $router->post('/register', 'AuthController', 'register');
+$router->get('/logout', 'AuthController', 'logout');
 
 try {
     $router->dispatch();
 } catch (Exception $e) {
     http_response_code(500);
     echo "Server Error: " . $e->getMessage();
-
     error_log("Router Error: " . $e->getMessage());
 }

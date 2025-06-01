@@ -16,14 +16,28 @@ class AuthController
         $email = $_POST['email'] ?? '';
         $password = $_POST['password'] ?? '';
 
-        if ($this->validateLogin($email, $password)) {
-            session_start();
-            $_SESSION['user_id'] = 1;
-            $_SESSION['user_email'] = $email;
-            header('Location: /surveys');
-            exit;
-        } else {
-            $content = $this->renderLoginForm('Невірний email або пароль');
+        if (empty($email) || empty($password)) {
+            $content = $this->renderLoginForm('Заповніть всі поля');
+            echo $content;
+            return;
+        }
+
+        try {
+            $user = User::authenticate($email, $password);
+
+            if ($user) {
+                session_start();
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['user_email'] = $user['email'];
+                $_SESSION['user_name'] = $user['name'];
+                header('Location: /surveys');
+                exit;
+            } else {
+                $content = $this->renderLoginForm('Невірний email або пароль');
+                echo $content;
+            }
+        } catch (Exception $e) {
+            $content = $this->renderLoginForm('Помилка при авторизації. Спробуйте пізніше.');
             echo $content;
         }
     }
@@ -44,20 +58,37 @@ class AuthController
         $errors = $this->validateRegistration($name, $email, $password, $confirmPassword);
 
         if (empty($errors)) {
-            session_start();
-            $_SESSION['user_id'] = 2;
-            $_SESSION['user_email'] = $email;
-            header('Location: /surveys');
-            exit;
-        } else {
-            $content = $this->renderRegisterForm($errors);
-            echo $content;
+            try {
+                // Перевіряємо чи не існує вже користувач з таким email
+                if (User::emailExists($email)) {
+                    $errors[] = "Користувач з таким email вже існує";
+                } else {
+                    $userId = User::create($name, $email, $password);
+
+                    // Автоматично логінимо користувача після реєстрації
+                    session_start();
+                    $_SESSION['user_id'] = $userId;
+                    $_SESSION['user_email'] = $email;
+                    $_SESSION['user_name'] = $name;
+
+                    header('Location: /surveys');
+                    exit;
+                }
+            } catch (Exception $e) {
+                $errors[] = "Помилка при реєстрації. Спробуйте пізніше.";
+            }
         }
+
+        $content = $this->renderRegisterForm($errors);
+        echo $content;
     }
 
-    private function validateLogin(string $email, string $password): bool
+    public function logout(): void
     {
-        return $email === 'test@example.com' && $password === 'password';
+        session_start();
+        session_destroy();
+        header('Location: /');
+        exit;
     }
 
     private function validateRegistration(string $name, string $email, string $password, string $confirmPassword): array
@@ -66,6 +97,8 @@ class AuthController
 
         if (empty($name)) {
             $errors[] = "Ім'я є обов'язковим полем";
+        } elseif (strlen($name) < 2) {
+            $errors[] = "Ім'я повинно містити мінімум 2 символи";
         }
 
         if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -93,7 +126,7 @@ class AuthController
             <form method='POST' action='/login'>
                 <div class='form-group'>
                     <label for='email'>Email:</label>
-                    <input type='email' id='email' name='email' required>
+                    <input type='email' id='email' name='email' required value='" . ($_POST['email'] ?? '') . "'>
                 </div>
                 <div class='form-group'>
                     <label for='password'>Пароль:</label>
@@ -105,11 +138,6 @@ class AuthController
                     <a href='/' class='btn btn-secondary'>На головну</a>
                 </div>
             </form>
-            <div class='demo-info'>
-                <p><strong>Тестові дані:</strong></p>
-                <p>Email: test@example.com</p>
-                <p>Пароль: password</p>
-            </div>
         ");
     }
 
@@ -121,17 +149,21 @@ class AuthController
             $errorHtml = "<div class='error-message'><ul><li>{$errorList}</li></ul></div>";
         }
 
+        // Зберігаємо введені дані при помилці
+        $name = htmlspecialchars($_POST['name'] ?? '');
+        $email = htmlspecialchars($_POST['email'] ?? '');
+
         return $this->renderPage("Реєстрація", "
             <h1>Реєстрація нового користувача</h1>
             {$errorHtml}
             <form method='POST' action='/register'>
                 <div class='form-group'>
                     <label for='name'>Ім'я:</label>
-                    <input type='text' id='name' name='name' required>
+                    <input type='text' id='name' name='name' required value='{$name}'>
                 </div>
                 <div class='form-group'>
                     <label for='email'>Email:</label>
-                    <input type='email' id='email' name='email' required>
+                    <input type='email' id='email' name='email' required value='{$email}'>
                 </div>
                 <div class='form-group'>
                     <label for='password'>Пароль:</label>
