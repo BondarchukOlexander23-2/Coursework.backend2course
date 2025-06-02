@@ -10,7 +10,7 @@ class Database
         'host' => 'localhost',
         'dbname' => 'survey_platform',
         'username' => 'root',
-        'password' => '', // Зазвичай пустий пароль для WAMP
+        'password' => '',
         'charset' => 'utf8mb4'
     ];
 
@@ -58,7 +58,7 @@ class Database
     }
 
     /**
-     * Виконати запит SELECT та повернути один результат
+     * Виконується запит SELECT та повернути один результат
      */
     public static function selectOne(string $query, array $params = []): ?array
     {
@@ -70,7 +70,7 @@ class Database
     }
 
     /**
-     * Виконати запит INSERT та повернути ID нового запису
+     * Виконується запит INSERT та повернути ID нового запису
      */
     public static function insert(string $query, array $params = []): int
     {
@@ -81,7 +81,7 @@ class Database
     }
 
     /**
-     * Виконати запит UPDATE або DELETE та повернути кількість змінених рядків
+     * Виконується запит UPDATE або DELETE та повернути кількість змінених рядків
      */
     public static function execute(string $query, array $params = []): int
     {

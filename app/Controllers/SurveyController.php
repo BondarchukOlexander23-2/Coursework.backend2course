@@ -188,6 +188,8 @@ class SurveyController
                     <label for='description'>Опис:</label>
                     <textarea id='description' name='description' rows='4'>{$description}</textarea>
                 </div>
+                
+                
                 <div class='form-actions'>
                     <button type='submit' class='btn btn-success'>Створити опитування</button>
                     <a href='/surveys' class='btn btn-secondary'>Скасувати</a>

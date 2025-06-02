@@ -1,6 +1,5 @@
 <?php
 
-// Підключення класів
 require_once '../app/Database/Database.php';
 require_once '../app/Models/User.php';
 require_once '../app/Models/Survey.php';
