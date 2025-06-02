@@ -3,6 +3,8 @@
 // Підключення класів
 require_once '../app/Database/Database.php';
 require_once '../app/Models/User.php';
+require_once '../app/Models/Survey.php';
+require_once '../app/Helpers/Session.php';
 require_once '../app/Router.php';
 require_once '../app/Controllers/HomeController.php';
 require_once '../app/Controllers/SurveyController.php';
@@ -29,6 +31,7 @@ $router->post('/surveys/store', 'SurveyController', 'store');
 $router->get('/surveys/view', 'SurveyController', 'view');
 $router->post('/surveys/submit', 'SurveyController', 'submit');
 $router->get('/surveys/results', 'SurveyController', 'results');
+$router->get('/surveys/my', 'SurveyController', 'my');
 
 // Авторизація та реєстрація
 $router->get('/login', 'AuthController', 'showLogin');
