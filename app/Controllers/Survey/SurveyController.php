@@ -587,4 +587,97 @@ class SurveyController
         </body>
         </html>";
     }
+    /**
+     * Додати питання до опитування
+     */
+    public function addQuestion(): void
+    {
+        Session::requireLogin();
+
+        $surveyId = (int)($_POST['survey_id'] ?? 0);
+        $questionText = trim($_POST['question_text'] ?? '');
+        $questionType = $_POST['question_type'] ?? '';
+        $isRequired = isset($_POST['is_required']);
+        $points = (int)($_POST['points'] ?? 1);
+        $correctAnswer = trim($_POST['correct_answer'] ?? '') ?: null;
+        $options = $_POST['options'] ?? [];
+        $correctOptions = $_POST['correct_options'] ?? [];
+
+        // Валідація
+        $survey = $this->validator->validateAndGetSurvey($surveyId);
+        if (!$survey) {
+            Session::setFlashMessage('error', 'Опитування не знайдено');
+            header('Location: /surveys/my');
+            exit;
+        }
+
+        if (!Survey::isAuthor($surveyId, Session::getUserId())) {
+            Session::setFlashMessage('error', 'У вас немає прав для редагування цього опитування');
+            header('Location: /surveys/my');
+            exit;
+        }
+
+        $errors = $this->validator->validateQuestionData($questionText, $questionType, $options, $points);
+
+        if (!empty($errors)) {
+            Session::setFlashMessage('error', implode('<br>', $errors));
+            header("Location: /surveys/edit?id={$surveyId}");
+            exit;
+        }
+
+        try {
+            $this->questionService->createQuestionWithOptions(
+                $surveyId,
+                $questionText,
+                $questionType,
+                $isRequired,
+                $correctAnswer,
+                $points,
+                $options,
+                $correctOptions
+            );
+
+            Session::setFlashMessage('success', 'Питання успішно додано');
+        } catch (Exception $e) {
+            Session::setFlashMessage('error', 'Помилка при додаванні питання: ' . $e->getMessage());
+        }
+
+        header("Location: /surveys/edit?id={$surveyId}");
+        exit;
+    }
+
+    /**
+     * Видалити питання
+     */
+    public function deleteQuestion(): void
+    {
+        Session::requireLogin();
+
+        $questionId = (int)($_POST['question_id'] ?? 0);
+        $surveyId = (int)($_POST['survey_id'] ?? 0);
+
+        $question = Question::findById($questionId);
+        if (!$question) {
+            Session::setFlashMessage('error', 'Питання не знайдено');
+            header("Location: /surveys/edit?id={$surveyId}");
+            exit;
+        }
+
+        if (!Survey::isAuthor($surveyId, Session::getUserId())) {
+            Session::setFlashMessage('error', 'У вас немає прав для редагування цього опитування');
+            header('Location: /surveys/my');
+            exit;
+        }
+
+        try {
+            $this->questionService->deleteQuestion($questionId);
+            Session::setFlashMessage('success', 'Питання видалено');
+        } catch (Exception $e) {
+            Session::setFlashMessage('error', 'Помилка при видаленні питання: ' . $e->getMessage());
+        }
+
+        header("Location: /surveys/edit?id={$surveyId}");
+        exit;
+    }
+
 }

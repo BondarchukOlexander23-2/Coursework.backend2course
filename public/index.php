@@ -10,13 +10,16 @@ require_once '../app/Models/QuestionAnswer.php';
 require_once '../app/Helpers/Session.php';
 require_once '../app/Router.php';
 
-// Завантажуємо тільки необхідні сервіси
+// Завантажуємо сервіси
 require_once '../app/Services/SurveyValidator.php';
 require_once '../app/Services/QuestionService.php';
+require_once '../app/Services/AdminValidator.php';
+require_once '../app/Services/AdminService.php';
 
-// Завантажуємо контролери (з вашої папки Survey)
+// Завантажуємо контролери
 require_once '../app/Controllers/HomeController.php';
 require_once '../app/Controllers/AuthController.php';
+require_once '../app/Controllers/AdminController.php';
 require_once '../app/Controllers/Survey/SurveyController.php';
 require_once '../app/Controllers/Survey/SurveyResponseController.php';
 require_once '../app/Controllers/Survey/SurveyResultsController.php';
@@ -32,7 +35,7 @@ if (!Database::testConnection()) {
 
 $router = new Router();
 
-// Головна сторінка
+// === ГОЛОВНА СТОРІНКА ===
 $router->get('/', 'HomeController', 'index');
 
 // === ОСНОВНІ СТОРІНКИ ОПИТУВАНЬ ===
@@ -43,7 +46,7 @@ $router->get('/surveys/edit', 'SurveyController', 'edit');
 $router->get('/surveys/view', 'SurveyController', 'view');
 $router->get('/surveys/my', 'SurveyController', 'my');
 
-// === РОБОТА З ПИТАННЯМИ (залишаємо в SurveyController) ===
+// === РОБОТА З ПИТАННЯМИ ===
 $router->post('/surveys/add-question', 'SurveyController', 'addQuestion');
 $router->post('/surveys/delete-question', 'SurveyController', 'deleteQuestion');
 
@@ -60,6 +63,24 @@ $router->post('/login', 'AuthController', 'login');
 $router->get('/register', 'AuthController', 'showRegister');
 $router->post('/register', 'AuthController', 'register');
 $router->get('/logout', 'AuthController', 'logout');
+
+// === АДМІН-ПАНЕЛЬ ===
+$router->get('/admin', 'AdminController', 'dashboard');
+$router->get('/admin/dashboard', 'AdminController', 'dashboard');
+
+// Управління користувачами
+$router->get('/admin/users', 'AdminController', 'users');
+$router->post('/admin/delete-user', 'AdminController', 'deleteUser');
+$router->post('/admin/change-user-role', 'AdminController', 'changeUserRole');
+
+// Управління опитуваннями
+$router->get('/admin/surveys', 'AdminController', 'surveys');
+$router->post('/admin/delete-survey', 'AdminController', 'deleteSurvey');
+$router->post('/admin/toggle-survey-status', 'AdminController', 'toggleSurveyStatus');
+
+// Статистика та експорт
+$router->get('/admin/survey-stats', 'AdminController', 'surveyStats');
+$router->get('/admin/export-stats', 'AdminController', 'exportStats');
 
 try {
     $router->dispatch();
