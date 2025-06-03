@@ -3,6 +3,10 @@
 require_once '../app/Database/Database.php';
 require_once '../app/Models/User.php';
 require_once '../app/Models/Survey.php';
+require_once '../app/Models/Question.php';
+require_once '../app/Models/QuestionOption.php';
+require_once '../app/Models/SurveyResponse.php';
+require_once '../app/Models/QuestionAnswer.php';
 require_once '../app/Helpers/Session.php';
 require_once '../app/Router.php';
 require_once '../app/Controllers/HomeController.php';
@@ -27,10 +31,16 @@ $router->get('/', 'HomeController', 'index');
 $router->get('/surveys', 'SurveyController', 'index');
 $router->get('/surveys/create', 'SurveyController', 'create');
 $router->post('/surveys/store', 'SurveyController', 'store');
+$router->get('/surveys/edit', 'SurveyController', 'edit');
 $router->get('/surveys/view', 'SurveyController', 'view');
 $router->post('/surveys/submit', 'SurveyController', 'submit');
 $router->get('/surveys/results', 'SurveyController', 'results');
 $router->get('/surveys/my', 'SurveyController', 'my');
+
+// Робота з питаннями та квізами
+$router->post('/surveys/add-question', 'SurveyController', 'addQuestion');
+$router->post('/surveys/delete-question', 'SurveyController', 'deleteQuestion');
+$router->get('/surveys/response-details', 'SurveyController', 'responseDetails');
 
 // Авторизація та реєстрація
 $router->get('/login', 'AuthController', 'showLogin');

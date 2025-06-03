@@ -1,13 +1,12 @@
-/* Загальні стилі для платформи опитувань */
+/* Повний стиль для платформи опитувань і квізів - БЕЗ ДУБЛЮВАННЯ */
 
-/* Скидання стилів */
+/* === БАЗОВІ СТИЛІ === */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
-/* Основні стилі */
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     line-height: 1.6;
@@ -15,7 +14,7 @@ body {
     overflow-x: hidden;
 }
 
-/* Головна сторінка стилі */
+/* === ГОЛОВНА СТОРІНКА === */
 .home-page {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
@@ -28,7 +27,7 @@ body {
     padding: 0 20px;
 }
 
-/* Стилі для внутрішніх сторінок */
+/* === ВНУТРІШНІ СТОРІНКИ === */
 body:not(.home-page) {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
@@ -46,7 +45,7 @@ body:not(.home-page) .container {
     padding: 2rem;
 }
 
-/* Хедер */
+/* === ХЕДЕР === */
 .header {
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(10px);
@@ -133,7 +132,7 @@ body:not(.home-page) .container {
     gap: 0.5rem;
 }
 
-/* Hero секція */
+/* === HERO СЕКЦІЯ === */
 .hero-section {
     display: flex;
     align-items: center;
@@ -235,7 +234,7 @@ body:not(.home-page) .container {
     50% { transform: translateY(-20px); }
 }
 
-/* Секція особливостей */
+/* === СЕКЦІЯ ОСОБЛИВОСТЕЙ === */
 .features-section {
     padding: 6rem 0;
     background: white;
@@ -284,7 +283,7 @@ body:not(.home-page) .container {
     line-height: 1.6;
 }
 
-/* CTA секція */
+/* === CTA СЕКЦІЯ === */
 .cta-section {
     background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
     padding: 5rem 0;
@@ -310,7 +309,7 @@ body:not(.home-page) .container {
     flex-wrap: wrap;
 }
 
-/* Футер */
+/* === ФУТЕР === */
 .footer {
     background: #2c3e50;
     color: white;
@@ -363,7 +362,7 @@ body:not(.home-page) .container {
     color: rgba(255, 255, 255, 0.6);
 }
 
-/* Кнопки */
+/* === КНОПКИ === */
 .btn {
     display: inline-block;
     padding: 12px 24px;
@@ -467,7 +466,7 @@ body:not(.home-page) .container {
     border-color: white;
 }
 
-/* Форми */
+/* === ФОРМИ === */
 .form-group {
     margin-bottom: 1.5rem;
 }
@@ -498,12 +497,33 @@ body:not(.home-page) .container {
     box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
 }
 
+.form-control {
+    width: 100%;
+    padding: 1rem;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
 .form-actions {
     margin-top: 2rem;
     text-align: center;
 }
 
-/* Повідомлення */
+.form-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1rem;
+}
+
+/* === ПОВІДОМЛЕННЯ === */
 .error-message {
     background: #ffebee;
     color: #c62828;
@@ -541,7 +561,7 @@ body:not(.home-page) .container {
     border-left: 4px solid #dc3545;
 }
 
-/* Заголовки */
+/* === ЗАГОЛОВКИ === */
 h1 {
     color: #2c3e50;
     margin-bottom: 1.5rem;
@@ -560,7 +580,7 @@ h3 {
     font-size: 1.5rem;
 }
 
-/* Хедер дії для внутрішніх сторінок */
+/* === ХЕДЕР ДІЇ === */
 .header-actions {
     display: flex;
     justify-content: space-between;
@@ -575,7 +595,160 @@ h3 {
     gap: 1rem;
 }
 
-/* Список опитувань */
+/* === РЕДАГУВАННЯ ОПИТУВАННЯ === */
+.survey-edit-sections {
+    display: grid;
+    gap: 3rem;
+    margin: 2rem 0;
+}
+
+.existing-questions {
+    background: #f8f9fa;
+    padding: 2rem;
+    border-radius: 12px;
+    border-left: 4px solid #3498db;
+}
+
+.questions-list {
+    display: grid;
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.question-item {
+    background: white;
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.question-item:hover {
+    border-color: #3498db;
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.1);
+}
+
+.question-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.question-header h4 {
+    margin: 0;
+    color: #2c3e50;
+    flex: 1;
+}
+
+.question-type {
+    background: #3498db;
+    color: white;
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.question-options {
+    margin: 1rem 0;
+    padding-left: 1.5rem;
+}
+
+.question-options li {
+    margin: 0.5rem 0;
+    color: #7f8c8d;
+}
+
+.correct-option {
+    background: #d4edda !important;
+    border-left: 4px solid #28a745;
+    font-weight: bold;
+}
+
+.correct-answer {
+    background: #d4edda;
+    padding: 0.8rem;
+    border-radius: 6px;
+    border-left: 4px solid #28a745;
+    margin-top: 1rem;
+}
+
+.question-points {
+    color: #6c757d;
+    font-weight: normal;
+    font-size: 0.9rem;
+}
+
+.add-question {
+    background: #ffffff;
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    padding: 2rem;
+}
+
+.add-question h2 {
+    color: #27ae60;
+    margin-bottom: 1.5rem;
+}
+
+.option-input {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.8rem;
+    padding: 0.8rem;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.option-input:hover {
+    border-color: #dee2e6;
+}
+
+.option-input input[type="text"] {
+    flex: 1;
+    margin: 0;
+    border: 1px solid #ced4da;
+    padding: 0.5rem;
+    border-radius: 4px;
+}
+
+.option-input label {
+    margin: 0;
+    white-space: nowrap;
+    font-weight: 500;
+    color: #28a745;
+}
+
+.option-input input[type="checkbox"] {
+    width: auto;
+    margin: 0 0.3rem 0 0;
+}
+
+#options-section {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border-left: 4px solid #f39c12;
+}
+
+#options-container {
+    display: grid;
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+}
+
+#options-container input {
+    padding: 0.8rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+/* === СПИСОК ОПИТУВАНЬ === */
 .survey-list {
     display: grid;
     gap: 1.5rem;
@@ -606,40 +779,293 @@ h3 {
     margin-bottom: 1rem;
 }
 
-/* Питання в опитуваннях */
+/* === ПИТАННЯ В ОПИТУВАННЯХ === */
 .question {
-    background: #f8f9fa;
-    padding: 1.5rem;
-    border-radius: 10px;
+    background: #ffffff;
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    padding: 2rem;
     margin-bottom: 2rem;
-    border-left: 4px solid #3498db;
+    transition: all 0.3s ease;
+}
+
+.question:hover {
+    border-color: #3498db;
+    box-shadow: 0 4px 15px rgba(52, 152, 219, 0.1);
 }
 
 .question h3 {
-    margin-bottom: 1rem;
     color: #2c3e50;
+    margin-bottom: 1.5rem;
+    font-size: 1.3rem;
 }
 
-.question label {
-    font-weight: normal;
-    margin: 0.5rem 0;
+.required {
+    color: #e74c3c;
+    font-weight: bold;
+}
+
+.question-input {
+    margin-top: 1rem;
+}
+
+.option-label {
     display: block;
+    margin: 0.8rem 0;
+    padding: 0.8rem;
+    background: #f8f9fa;
+    border-radius: 8px;
     cursor: pointer;
-    transition: color 0.2s ease;
+    transition: all 0.3s ease;
+    font-weight: normal;
 }
 
-.question label:hover {
+.option-label:hover {
+    background: #e9ecef;
     color: #3498db;
 }
 
-.question input[type="radio"] {
-    margin-right: 0.5rem;
+.option-label input[type="radio"],
+.option-label input[type="checkbox"] {
+    margin-right: 0.8rem;
     width: auto;
+    transform: scale(1.2);
 }
 
-/* Результати опитувань */
+/* === РЕЗУЛЬТАТИ КВІЗІВ === */
+.user-result {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 15px;
+    margin-bottom: 2rem;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.user-result.highlight {
+    animation: pulse 2s ease-in-out;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+}
+
+.user-result h3 {
+    color: white;
+    margin-bottom: 1.5rem;
+    font-size: 1.8rem;
+}
+
+.score-display {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 2rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+
+.score {
+    font-size: 3rem;
+    font-weight: bold;
+    color: #f1c40f;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.percentage {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: white;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.level {
+    padding: 0.8rem 1.5rem;
+    border-radius: 25px;
+    font-weight: bold;
+    font-size: 1.1rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.level.excellent {
+    background: #28a745;
+    color: white;
+}
+
+.level.good {
+    background: #17a2b8;
+    color: white;
+}
+
+.level.satisfactory {
+    background: #ffc107;
+    color: #212529;
+}
+
+.level.poor {
+    background: #dc3545;
+    color: white;
+}
+
+/* === СТАТИСТИКА КВІЗУ === */
+.quiz-stats {
+    background: white;
+    border-radius: 15px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.quiz-stats h3 {
+    color: #2c3e50;
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 1.5rem;
+    background: #f8f9fa;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.stat-item:hover {
+    border-color: #3498db;
+    transform: translateY(-2px);
+}
+
+.stat-number {
+    display: block;
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #3498db;
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    font-size: 1rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* === ТОП РЕЗУЛЬТАТИ === */
+.top-results {
+    background: white;
+    border-radius: 15px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.top-results h3 {
+    color: #2c3e50;
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.top-results ol {
+    list-style: none;
+    counter-reset: ranking;
+    padding: 0;
+}
+
+.top-results li {
+    counter-increment: ranking;
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    margin-bottom: 0.8rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #dee2e6;
+    transition: all 0.3s ease;
+}
+
+.top-results li:hover {
+    background: #e9ecef;
+    border-left-color: #3498db;
+}
+
+.top-results li:nth-child(1) {
+    background: linear-gradient(90deg, #ffd700, #ffed4e);
+    border-left-color: #ffd700;
+    font-weight: bold;
+}
+
+.top-results li:nth-child(2) {
+    background: linear-gradient(90deg, #c0c0c0, #e5e5e5);
+    border-left-color: #c0c0c0;
+    font-weight: bold;
+}
+
+.top-results li:nth-child(3) {
+    background: linear-gradient(90deg, #cd7f32, #d4a574);
+    border-left-color: #cd7f32;
+    font-weight: bold;
+}
+
+.top-results li::before {
+    content: counter(ranking);
+    background: #3498db;
+    color: white;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    margin-right: 1rem;
+    flex-shrink: 0;
+}
+
+.top-results li:nth-child(1)::before {
+    background: #ffd700;
+    color: #333;
+}
+
+.top-results li:nth-child(2)::before {
+    background: #c0c0c0;
+    color: #333;
+}
+
+.top-results li:nth-child(3)::before {
+    background: #cd7f32;
+    color: white;
+}
+
+/* === РЕЗУЛЬТАТИ ОПИТУВАНЬ === */
 .results {
     margin: 2rem 0;
+}
+
+.question-results {
+    background: white;
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.question-results h3 {
+    color: #2c3e50;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid #ecf0f1;
+    padding-bottom: 0.5rem;
 }
 
 .result-item {
@@ -649,113 +1075,22 @@ h3 {
     border-radius: 8px;
 }
 
+.result-item p {
+    margin-bottom: 0.8rem;
+    color: #2c3e50;
+}
+
 .progress-bar {
     width: 100%;
     height: 25px;
     background: #ecf0f1;
     border-radius: 12px;
     overflow: hidden;
-    margin-top: 0.5rem;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .progress {
     height: 100%;
     background: linear-gradient(90deg, #3498db, #2ecc71);
-    transition: width 0.8s ease;
-    border-radius: 12px;
-}
-
-/* Адаптивність */
-@media (max-width: 1024px) {
-    .hero-section {
-        flex-direction: column;
-        text-align: center;
-        padding: 2rem 0;
-    }
-
-    .hero-visual {
-        margin-left: 0;
-        margin-top: 2rem;
-        height: 300px;
-    }
-
-    .hero-title {
-        font-size: 2.5rem;
-    }
-}
-
-@media (max-width: 768px) {
-    body:not(.home-page) {
-        padding: 10px;
-    }
-
-    body:not(.home-page) .container {
-        border-radius: 10px;
-        min-height: calc(100vh - 20px);
-        padding: 1.5rem;
-    }
-
-    .header-content {
-        flex-direction: column;
-        gap: 1rem;
-        text-align: center;
-    }
-
-    .nav {
-        gap: 1rem;
-    }
-
-    .hero-title {
-        font-size: 2rem;
-    }
-
-    .features-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .footer-content {
-        grid-template-columns: 1fr;
-        text-align: center;
-    }
-
-    .footer-links {
-        grid-template-columns: 1fr;
-        text-align: center;
-    }
-
-    .cta-actions {
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .hero-actions {
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .btn {
-        width: 100%;
-        max-width: 300px;
-    }
-}
-
-@media (max-width: 480px) {
-    .hero-visual {
-        display: none;
-    }
-
-    .section-title {
-        font-size: 2rem;
-    }
-
-    .header-auth {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-
-    .auth-buttons,
-    .user-menu {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
+    transition: width 1s ease;
 }
