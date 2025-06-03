@@ -65,7 +65,8 @@ class AdminController extends BaseController
         $this->safeExecute(function() {
             $this->requireAdmin();
 
-            $surveyId = $this->getIntParam('survey_id');
+            // Правильно отримуємо POST параметр
+            $surveyId = (int)($this->postParam('survey_id', 0));
             $errors = $this->validator->validateSurveyDeletion($surveyId);
 
             if (!empty($errors)) {
@@ -99,7 +100,17 @@ class AdminController extends BaseController
         $this->safeExecute(function() {
             $this->requireAdmin();
 
-            $surveyId = $this->getIntParam('survey_id');
+            // Правильно отримуємо POST параметр
+            $surveyId = (int)($this->postParam('survey_id', 0));
+
+            if ($surveyId <= 0) {
+                if ($this->isAjaxRequest()) {
+                    $this->sendAjaxResponse(false, ['Невірний ID опитування'], 'Помилка');
+                } else {
+                    $this->redirectWithMessage('/admin/surveys', 'error', 'Невірний ID опитування');
+                }
+                return;
+            }
 
             try {
                 $this->adminService->toggleSurveyStatus($surveyId);
@@ -113,6 +124,12 @@ class AdminController extends BaseController
                 throw new DatabaseException($e->getMessage(), 'Помилка при зміні статусу');
             }
         });
+    }
+
+    protected function postIntParam(string $key, int $default = 0): int
+    {
+        $value = $this->postParam($key, $default);
+        return is_numeric($value) ? (int)$value : $default;
     }
 
     /**
@@ -163,13 +180,21 @@ class AdminController extends BaseController
                 <td>{$survey['created_at']}</td>
                 <td class='actions'>
                     <a href='/admin/survey-stats?id={$survey['id']}' class='btn btn-sm btn-primary'>Статистика</a>
-                    <form method='POST' action='/admin/toggle-survey-status' style='display: inline;' class='ajax-form'>
+                    
+                    <!-- Форма зміни статусу -->
+                    <form method='POST' action='/admin/toggle-survey-status' style='display: inline;' 
+                          onsubmit='return handleFormSubmit(this)'>
                         <input type='hidden' name='survey_id' value='{$survey['id']}'>
-                        <button type='submit' class='btn btn-sm btn-secondary'>" . ($survey['is_active'] ? 'Деактивувати' : 'Активувати') . "</button>
+                        <button type='submit' class='btn btn-sm btn-secondary'>
+                            " . ($survey['is_active'] ? 'Деактивувати' : 'Активувати') . "
+                        </button>
                     </form>
-                    <form method='POST' action='/admin/delete-survey' style='display: inline;' class='ajax-form'>
+                    
+                    <!-- Форма видалення -->
+                    <form method='POST' action='/admin/delete-survey' style='display: inline;' 
+                          onsubmit='return handleDeleteSubmit(this)'>
                         <input type='hidden' name='survey_id' value='{$survey['id']}'>
-                        <button type='submit' class='btn btn-danger btn-sm' onclick='return confirm(\"Видалити опитування?\")'>Видалити</button>
+                        <button type='submit' class='btn btn-danger btn-sm'>Видалити</button>
                     </form>
                 </td>
             </tr>";
@@ -216,34 +241,89 @@ class AdminController extends BaseController
         {$pagination}
         
         <script>
-            // AJAX обробка форм
-            document.querySelectorAll('.ajax-form').forEach(form => {
-                form.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    
-                    const formData = new FormData(this);
-                    
-                    fetch(this.action, {
-                        method: 'POST',
-                        body: formData,
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
+            function handleFormSubmit(form) {
+                return submitFormAjax(form, false);
+            }
+            
+            function handleDeleteSubmit(form) {
+                if (!confirm('Видалити це опитування? Ця дія незворотна!')) {
+                    return false;
+                }
+                return submitFormAjax(form, true);
+            }
+            
+            function submitFormAjax(form, isDelete) {
+                const formData = new FormData(form);
+                
+                fetch(form.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        // Показуємо повідомлення
+                        showMessage(data.message, 'success');
+                        
+                        // Перезавантажуємо сторінку через секунду
+                        setTimeout(() => {
                             location.reload();
-                        } else {
-                            alert('Помилка: ' + data.message);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        this.submit(); // Fallback
-                    });
+                        }, 1000);
+                    } else {
+                        showMessage(data.message || 'Виникла помилка', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showMessage('Виникла помилка при виконанні операції', 'error');
+                    
+                    // Fallback - звичайна submit форми
+                    form.submit();
                 });
-            });
+                
+                return false; // Запобігаємо звичайній submit
+            }
+            
+            function showMessage(message, type) {
+                // Створюємо елемент повідомлення
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'flash-message ' + type;
+                messageDiv.style.position = 'fixed';
+                messageDiv.style.top = '20px';
+                messageDiv.style.right = '20px';
+                messageDiv.style.zIndex = '9999';
+                messageDiv.style.padding = '1rem';
+                messageDiv.style.borderRadius = '8px';
+                messageDiv.style.maxWidth = '400px';
+                messageDiv.textContent = message;
+                
+                if (type === 'success') {
+                    messageDiv.style.background = '#d4edda';
+                    messageDiv.style.color = '#155724';
+                    messageDiv.style.border = '1px solid #c3e6cb';
+                } else {
+                    messageDiv.style.background = '#f8d7da';
+                    messageDiv.style.color = '#721c24';
+                    messageDiv.style.border = '1px solid #f5c6cb';
+                }
+                
+                document.body.appendChild(messageDiv);
+                
+                // Видаляємо через 3 секунди
+                setTimeout(() => {
+                    if (messageDiv.parentNode) {
+                        messageDiv.parentNode.removeChild(messageDiv);
+                    }
+                }, 3000);
+            }
         </script>
     ");
     }
@@ -336,7 +416,8 @@ class AdminController extends BaseController
         $this->safeExecute(function() {
             $this->requireAdmin();
 
-            $userId = $this->getIntParam('user_id');
+            // Правильно отримуємо POST параметр
+            $userId = (int)($this->postParam('user_id', 0));
             $errors = $this->validator->validateUserDeletion($userId);
 
             if (!empty($errors)) {
@@ -370,7 +451,8 @@ class AdminController extends BaseController
         $this->safeExecute(function() {
             $this->requireAdmin();
 
-            $userId = $this->getIntParam('user_id');
+            // Правильно отримуємо POST параметри
+            $userId = (int)($this->postParam('user_id', 0));
             $newRole = $this->postParam('role', '');
 
             $errors = $this->validator->validateRoleChange($userId, $newRole);
@@ -516,103 +598,88 @@ class AdminController extends BaseController
 
     private function renderUsers(array $users, int $currentPage, int $totalPages, string $search): string
     {
-        // Логіка рендерингу аналогічна до оригінальної, але використовуємо buildAdminPage
         $usersHtml = '';
         foreach ($users as $user) {
             $roleClass = $user['role'] === 'admin' ? 'role-admin' : 'role-user';
             $roleText = $user['role'] === 'admin' ? 'Адмін' : 'Користувач';
 
             $usersHtml .= "<tr>
-                <td>{$user['id']}</td>
-                <td>" . htmlspecialchars($user['name']) . "</td>
-                <td>" . htmlspecialchars($user['email']) . "</td>
-                <td><span class='role-badge {$roleClass}'>{$roleText}</span></td>
-                <td>{$user['surveys_count']}</td>
-                <td>{$user['responses_count']}</td>
-                <td>{$user['created_at']}</td>
-                <td class='actions'>
-                    " . ($user['role'] !== 'admin' ? "
-                    <form method='POST' action='/admin/change-user-role' style='display: inline;' class='ajax-form'>
-                        <input type='hidden' name='user_id' value='{$user['id']}'>
-                        <select name='role' onchange='this.form.submit()'>
-                            <option value='user'" . ($user['role'] === 'user' ? ' selected' : '') . ">Користувач</option>
-                            <option value='admin'" . ($user['role'] === 'admin' ? ' selected' : '') . ">Адмін</option>
-                        </select>
-                    </form>
-                    <form method='POST' action='/admin/delete-user' style='display: inline;' class='ajax-form'>
-                        <input type='hidden' name='user_id' value='{$user['id']}'>
-                        <button type='submit' class='btn btn-danger btn-sm' onclick='return confirm(\"Видалити користувача?\")'>Видалити</button>
-                    </form>" : "<em>Системний адмін</em>") . "
-                </td>
-            </tr>";
+            <td>{$user['id']}</td>
+            <td>" . htmlspecialchars($user['name']) . "</td>
+            <td>" . htmlspecialchars($user['email']) . "</td>
+            <td><span class='role-badge {$roleClass}'>{$roleText}</span></td>
+            <td>{$user['surveys_count']}</td>
+            <td>{$user['responses_count']}</td>
+            <td>{$user['created_at']}</td>
+            <td class='actions'>
+                " . ($user['role'] !== 'admin' ? "
+                <form method='POST' action='/admin/change-user-role' style='display: inline;' 
+                      onsubmit='return handleFormSubmit(this)'>
+                    <input type='hidden' name='user_id' value='{$user['id']}'>
+                    <select name='role' onchange='this.form.submit()'>
+                        <option value='user'" . ($user['role'] === 'user' ? ' selected' : '') . ">Користувач</option>
+                        <option value='admin'" . ($user['role'] === 'admin' ? ' selected' : '') . ">Адмін</option>
+                    </select>
+                </form>
+                <form method='POST' action='/admin/delete-user' style='display: inline;' 
+                      onsubmit='return handleDeleteSubmit(this)'>
+                    <input type='hidden' name='user_id' value='{$user['id']}'>
+                    <button type='submit' class='btn btn-danger btn-sm'>Видалити</button>
+                </form>" : "<em>Системний адмін</em>") . "
+            </td>
+        </tr>";
         }
 
         $pagination = $this->renderPagination('/admin/users', $currentPage, $totalPages, ['search' => $search]);
 
         return $this->buildAdminPage("Управління користувачами", "
-            <div class='admin-header'>
-                <h1>Управління користувачами</h1>
-                " . $this->renderAdminNav() . "
-            </div>
+        <div class='admin-header'>
+            <h1>Управління користувачами</h1>
+            " . $this->renderAdminNav() . "
+        </div>
+        
+        <div class='admin-filters'>
+            <form method='GET' action='/admin/users' class='search-form'>
+                <input type='text' name='search' placeholder='Пошук користувачів...' value='" . htmlspecialchars($search) . "'>
+                <button type='submit' class='btn btn-primary'>Знайти</button>
+            </form>
+        </div>
+        
+        <div class='table-container'>
+            <table class='admin-table'>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Ім'я</th>
+                        <th>Email</th>
+                        <th>Роль</th>
+                        <th>Опитувань</th>
+                        <th>Відповідей</th>
+                        <th>Реєстрація</th>
+                        <th>Дії</th>
+                    </tr>
+                </thead>
+                <tbody>{$usersHtml}</tbody>
+            </table>
+        </div>
+        
+        {$pagination}
+        
+        <script>
+            function handleFormSubmit(form) {
+                return submitFormAjax(form, false);
+            }
             
-            <div class='admin-filters'>
-                <form method='GET' action='/admin/users' class='search-form'>
-                    <input type='text' name='search' placeholder='Пошук користувачів...' value='" . htmlspecialchars($search) . "'>
-                    <button type='submit' class='btn btn-primary'>Знайти</button>
-                </form>
-            </div>
+            function handleDeleteSubmit(form) {
+                if (!confirm('Видалити цього користувача? Ця дія незворотна!')) {
+                    return false;
+                }
+                return submitFormAjax(form, true);
+            }
             
-            <div class='table-container'>
-                <table class='admin-table'>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Ім'я</th>
-                            <th>Email</th>
-                            <th>Роль</th>
-                            <th>Опитувань</th>
-                            <th>Відповідей</th>
-                            <th>Реєстрація</th>
-                            <th>Дії</th>
-                        </tr>
-                    </thead>
-                    <tbody>{$usersHtml}</tbody>
-                </table>
-            </div>
-            
-            {$pagination}
-            
-            <script>
-                // AJAX обробка форм
-                document.querySelectorAll('.ajax-form').forEach(form => {
-                    form.addEventListener('submit', function(e) {
-                        e.preventDefault();
-                        
-                        const formData = new FormData(this);
-                        
-                        fetch(this.action, {
-                            method: 'POST',
-                            body: formData,
-                            headers: {
-                                'X-Requested-With': 'XMLHttpRequest'
-                            }
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                location.reload();
-                            } else {
-                                alert('Помилка: ' + data.message);
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            this.submit(); // Fallback
-                        });
-                    });
-                });
-            </script>
-        ");
+            // Тут той самий JavaScript код як вище
+        </script>
+    ");
     }
 
     private function renderAdminNav(): string
