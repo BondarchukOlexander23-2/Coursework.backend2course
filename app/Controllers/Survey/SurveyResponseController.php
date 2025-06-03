@@ -1,15 +1,16 @@
 <?php
 
 /**
- * Контролер для обробки відповідей на опитування з HTML всередині
+ * Оновлений контролер для обробки відповідей на опитування з BaseController
  */
-class SurveyResponseController
+class SurveyResponseController extends BaseController
 {
     private SurveyValidator $validator;
     private QuestionService $questionService;
 
     public function __construct()
     {
+        parent::__construct();
         $this->validator = new SurveyValidator();
         $this->questionService = new QuestionService();
     }
@@ -19,77 +20,89 @@ class SurveyResponseController
      */
     public function submit(): void
     {
-        $surveyId = (int)($_POST['survey_id'] ?? 0);
-        $answers = $_POST['answers'] ?? [];
+        $this->safeExecute(function() {
+            $surveyId = $this->getIntParam('survey_id');
+            $answers = $this->postParam('answers', []);
 
-        $survey = $this->validator->validateAndGetSurvey($surveyId);
-        if (!$survey) {
-            header('Location: /surveys');
-            exit;
-        }
+            $survey = $this->validator->validateAndGetSurvey($surveyId);
+            if (!$survey) {
+                throw new NotFoundException('Опитування не знайдено');
+            }
 
-        $questions = Question::getBySurveyId($surveyId, true);
-        $errors = $this->validator->validateAnswers($questions, $answers);
+            $questions = Question::getBySurveyId($surveyId, true);
+            $errors = $this->validator->validateAnswers($questions, $answers);
 
-        if (!empty($errors)) {
-            Session::setFlashMessage('error', implode('<br>', $errors));
-            header("Location: /surveys/view?id={$surveyId}");
-            exit;
-        }
+            if (!empty($errors)) {
+                if ($this->isAjaxRequest()) {
+                    $this->sendAjaxResponse(false, $errors, 'Помилки валідації');
+                } else {
+                    throw new ValidationException($errors);
+                }
+                return;
+            }
 
-        try {
-            // Створюємо запис про проходження опитування
-            $userId = Session::isLoggedIn() ? Session::getUserId() : null;
-            $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
-            $responseId = SurveyResponse::create($surveyId, $userId, $ipAddress);
+            try {
+                // Створюємо запис про проходження опитування
+                $userId = Session::isLoggedIn() ? Session::getUserId() : null;
+                $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
+                $responseId = SurveyResponse::create($surveyId, $userId, $ipAddress);
 
-            // Зберігаємо відповіді та підраховуємо результат
-            $totalScore = 0;
-            $maxScore = Question::getMaxPointsForSurvey($surveyId);
-            $isQuiz = Question::isQuiz($surveyId);
+                // Зберігаємо відповіді та підраховуємо результат
+                $totalScore = 0;
+                $maxScore = Question::getMaxPointsForSurvey($surveyId);
+                $isQuiz = Question::isQuiz($surveyId);
 
-            foreach ($questions as $question) {
-                $questionId = $question['id'];
-                $questionType = $question['question_type'];
+                foreach ($questions as $question) {
+                    $questionId = $question['id'];
+                    $questionType = $question['question_type'];
 
-                if (!isset($answers[$questionId])) {
-                    continue;
+                    if (!isset($answers[$questionId])) {
+                        continue;
+                    }
+
+                    $answer = $answers[$questionId];
+                    $result = ['is_correct' => false, 'points' => 0];
+
+                    // Перевіряємо правильність відповіді, якщо це квіз
+                    if ($isQuiz) {
+                        $result = Question::checkUserAnswer($questionId, $answer);
+                        $totalScore += $result['points'];
+                    }
+
+                    // Зберігаємо відповідь
+                    $this->saveQuestionAnswer($responseId, $question, $answer, $result);
                 }
 
-                $answer = $answers[$questionId];
-                $result = ['is_correct' => false, 'points' => 0];
-
-                // Перевіряємо правильність відповіді, якщо це квіз
+                // Оновлюємо загальний результат
                 if ($isQuiz) {
-                    $result = Question::checkUserAnswer($questionId, $answer);
-                    $totalScore += $result['points'];
+                    SurveyResponse::updateScore($responseId, $totalScore, $maxScore);
                 }
 
-                // Зберігаємо відповідь
-                $this->saveQuestionAnswer($responseId, $question, $answer, $result);
-            }
+                // Встановлюємо повідомлення залежно від типу
+                if ($isQuiz) {
+                    $percentage = $maxScore > 0 ? round(($totalScore / $maxScore) * 100, 1) : 0;
+                    $message = "Квіз завершено! Ваш результат: {$totalScore}/{$maxScore} балів ({$percentage}%)";
+                } else {
+                    $message = 'Дякуємо за участь в опитуванні!';
+                }
 
-            // Оновлюємо загальний результат
-            if ($isQuiz) {
-                SurveyResponse::updateScore($responseId, $totalScore, $maxScore);
-            }
+                $redirectUrl = "/surveys/results?id={$surveyId}&response={$responseId}";
 
-            // Встановлюємо повідомлення залежно від типу
-            if ($isQuiz) {
-                $percentage = $maxScore > 0 ? round(($totalScore / $maxScore) * 100, 1) : 0;
-                Session::setFlashMessage('success',
-                    "Квіз завершено! Ваш результат: {$totalScore}/{$maxScore} балів ({$percentage}%)");
-            } else {
-                Session::setFlashMessage('success', 'Дякуємо за участь в опитуванні!');
-            }
+                if ($this->isAjaxRequest()) {
+                    $this->sendAjaxResponse(true, [
+                        'response_id' => $responseId,
+                        'total_score' => $totalScore,
+                        'max_score' => $maxScore,
+                        'is_quiz' => $isQuiz
+                    ], $message);
+                } else {
+                    $this->redirectWithMessage($redirectUrl, 'success', $message);
+                }
 
-            header("Location: /surveys/results?id={$surveyId}&response={$responseId}");
-            exit;
-        } catch (Exception $e) {
-            Session::setFlashMessage('error', 'Помилка при збереженні відповідей');
-            header("Location: /surveys/view?id={$surveyId}");
-            exit;
-        }
+            } catch (Exception $e) {
+                throw new DatabaseException($e->getMessage(), 'Помилка при збереженні відповідей');
+            }
+        });
     }
 
     /**
@@ -97,24 +110,32 @@ class SurveyResponseController
      */
     public function responseDetails(): void
     {
-        $responseId = (int)($_GET['id'] ?? 0);
+        $this->safeExecute(function() {
+            $responseId = $this->getIntParam('id');
 
-        if ($responseId <= 0) {
-            header('Location: /surveys');
-            exit;
-        }
+            if ($responseId <= 0) {
+                throw new NotFoundException('Невірний ID відповіді');
+            }
 
-        $response = SurveyResponse::findById($responseId);
-        if (!$response) {
-            header('Location: /surveys');
-            exit;
-        }
+            $response = SurveyResponse::findById($responseId);
+            if (!$response) {
+                throw new NotFoundException('Відповідь не знайдена');
+            }
 
-        $survey = Survey::findById($response['survey_id']);
-        $answers = QuestionAnswer::getByResponseId($responseId);
+            $survey = Survey::findById($response['survey_id']);
+            if (!$survey) {
+                throw new NotFoundException('Опитування не знайдено');
+            }
 
-        $content = $this->renderResponseDetails($survey, $response, $answers);
-        echo $content;
+            $answers = QuestionAnswer::getByResponseId($responseId);
+
+            $content = $this->renderResponseDetails($survey, $response, $answers);
+
+            // Результати кешуємо на 1 годину
+            $this->responseManager
+                ->setCacheHeaders(3600)
+                ->sendSuccess($content);
+        });
     }
 
     /**
@@ -148,8 +169,6 @@ class SurveyResponseController
                 break;
         }
     }
-
-    // === HTML РЕНДЕРИНГ ===
 
     /**
      * Відобразити деталі відповіді
@@ -199,7 +218,7 @@ class SurveyResponseController
                 </div>";
         }
 
-        return $this->renderPage("Деталі відповіді", "
+        return $this->buildHtmlPage("Деталі відповіді", "
             <div class='header-actions'>
                 <h1>Деталі відповіді на: " . htmlspecialchars($survey['title']) . "</h1>
                 " . $this->renderUserNav() . "
@@ -217,7 +236,52 @@ class SurveyResponseController
             
             <div class='form-actions'>
                 <a href='/surveys/results?id={$survey['id']}' class='btn btn-primary'>Назад до результатів</a>
+                <a href='/surveys' class='btn btn-secondary'>Всі опитування</a>
             </div>
+            
+            <style>
+                .answer-item {
+                    background: #f8f9fa;
+                    border-radius: 8px;
+                    padding: 1.5rem;
+                    margin-bottom: 1rem;
+                    border-left: 4px solid #dee2e6;
+                }
+                .answer-item.correct-answer {
+                    background: #d4edda;
+                    border-left-color: #28a745;
+                }
+                .answer-item.incorrect-answer {
+                    background: #f8d7da;
+                    border-left-color: #dc3545;
+                }
+                .answer-text {
+                    margin: 0.5rem 0 0 0;
+                    font-size: 1.1rem;
+                }
+                .points {
+                    color: #28a745;
+                    font-weight: bold;
+                }
+                .response-score {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 2rem;
+                    border-radius: 12px;
+                    text-align: center;
+                    margin-bottom: 2rem;
+                }
+                .response-score h3 {
+                    margin: 0;
+                    color: white;
+                }
+                .response-info {
+                    background: #f8f9fa;
+                    padding: 1.5rem;
+                    border-radius: 8px;
+                    margin-bottom: 2rem;
+                }
+            </style>
         ");
     }
 
@@ -240,39 +304,5 @@ class SurveyResponseController
                     <a href='/register' class='btn btn-sm'>Реєстрація</a>
                 </div>";
         }
-    }
-
-    /**
-     * Відобразити базову сторінку
-     */
-    private function renderPage(string $title, string $content): string
-    {
-        $flashSuccess = Session::getFlashMessage('success');
-        $flashError = Session::getFlashMessage('error');
-
-        $flashHtml = '';
-        if ($flashSuccess) {
-            $flashHtml .= "<div class='flash-message success'>{$flashSuccess}</div>";
-        }
-        if ($flashError) {
-            $flashHtml .= "<div class='flash-message error'>{$flashError}</div>";
-        }
-
-        return "
-        <!DOCTYPE html>
-        <html lang='uk'>
-        <head>
-            <meta charset='UTF-8'>
-            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-            <title>{$title}</title>
-            <link rel='stylesheet' href='/assets/css/style.css'>
-        </head>
-        <body>
-            <div class='container'>
-                {$flashHtml}
-                {$content}
-            </div>
-        </body>
-        </html>";
     }
 }

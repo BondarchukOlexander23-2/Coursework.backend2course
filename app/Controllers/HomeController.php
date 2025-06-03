@@ -1,16 +1,26 @@
 <?php
 
 /**
- * Контролер для головної сторінки
+ * Оновлений контролер для головної сторінки з BaseController
  */
-class HomeController
+class HomeController extends BaseController
 {
+    public function __construct()
+    {
+        parent::__construct();
+    }
+
     public function index(): void
     {
-        $title = "Платформа для онлайн-опитувань";
-        $content = $this->renderHomePage($title);
+        $this->safeExecute(function() {
+            $title = "Платформа для онлайн-опитувань";
+            $content = $this->renderHomePage($title);
 
-        echo $content;
+            // Кешуємо головну сторінку на 1 годину
+            $this->responseManager
+                ->setCacheHeaders(3600)
+                ->sendSuccess($content);
+        });
     }
 
     private function renderHomePage(string $title): string

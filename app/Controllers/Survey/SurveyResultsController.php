@@ -1,14 +1,15 @@
 <?php
 
 /**
- * Контролер для відображення результатів опитувань та квізів з HTML всередині
+ * Оновлений контролер для відображення результатів опитувань та квізів з BaseController
  */
-class SurveyResultsController
+class SurveyResultsController extends BaseController
 {
     private SurveyValidator $validator;
 
     public function __construct()
     {
+        parent::__construct();
         $this->validator = new SurveyValidator();
     }
 
@@ -17,23 +18,24 @@ class SurveyResultsController
      */
     public function results(): void
     {
-        $surveyId = (int)($_GET['id'] ?? 0);
-        $responseId = (int)($_GET['response'] ?? 0);
+        $this->safeExecute(function() {
+            $surveyId = $this->getIntParam('id');
+            $responseId = $this->getIntParam('response');
 
-        $survey = $this->validator->validateAndGetSurvey($surveyId);
-        if (!$survey) {
-            header('Location: /surveys');
-            exit;
-        }
+            $survey = $this->validator->validateAndGetSurvey($surveyId);
+            if (!$survey) {
+                throw new NotFoundException('Опитування не знайдено');
+            }
 
-        $questions = Question::getBySurveyId($surveyId);
-        $isQuiz = Question::isQuiz($surveyId);
+            $questions = Question::getBySurveyId($surveyId);
+            $isQuiz = Question::isQuiz($surveyId);
 
-        if ($isQuiz) {
-            $this->showQuizResults($survey, $questions, $responseId);
-        } else {
-            $this->showSurveyResults($survey, $questions);
-        }
+            if ($isQuiz) {
+                $this->showQuizResults($survey, $questions, $responseId);
+            } else {
+                $this->showSurveyResults($survey, $questions);
+            }
+        });
     }
 
     /**
@@ -50,7 +52,11 @@ class SurveyResultsController
         }
 
         $content = $this->renderQuizResults($survey, $questions, $quizStats, $topResults, $userResult);
-        echo $content;
+
+        // Результати квізу кешуємо на 15 хвилин
+        $this->responseManager
+            ->setCacheHeaders(900)
+            ->sendSuccess($content);
     }
 
     /**
@@ -66,10 +72,12 @@ class SurveyResultsController
         $totalResponses = SurveyResponse::getCountBySurveyId($survey['id']);
 
         $content = $this->renderSurveyResults($survey, $questions, $questionStats, $totalResponses);
-        echo $content;
-    }
 
-    // === HTML РЕНДЕРИНГ ===
+        // Результати опитування кешуємо на 30 хвилин
+        $this->responseManager
+            ->setCacheHeaders(1800)
+            ->sendSuccess($content);
+    }
 
     /**
      * Відобразити результати квізу
@@ -129,7 +137,7 @@ class SurveyResultsController
             $topResultsHtml .= '</ol></div>';
         }
 
-        return $this->renderPage("Результати квізу", "
+        return $this->buildHtmlPage("Результати квізу", "
             <div class='header-actions'>
                 <div>
                     <h1>Квіз: " . htmlspecialchars($survey['title']) . "</h1>
@@ -144,7 +152,29 @@ class SurveyResultsController
             <div class='form-actions'>
                 <a href='/surveys' class='btn btn-primary'>До списку опитувань</a>
                 <a href='/surveys/view?id={$survey['id']}' class='btn btn-secondary'>Пройти ще раз</a>
+                " . (Session::isLoggedIn() && Survey::isAuthor($survey['id'], Session::getUserId()) ?
+                "<a href='/surveys/edit?id={$survey['id']}' class='btn btn-secondary'>Редагувати</a>" : "") . "
             </div>
+            
+            <script>
+                // Анімація для результатів
+                document.addEventListener('DOMContentLoaded', function() {
+                    const statNumbers = document.querySelectorAll('.stat-number');
+                    statNumbers.forEach(el => {
+                        const target = parseInt(el.textContent);
+                        let current = 0;
+                        const increment = target / 50;
+                        const timer = setInterval(() => {
+                            current += increment;
+                            if (current >= target) {
+                                current = target;
+                                clearInterval(timer);
+                            }
+                            el.textContent = Math.floor(current);
+                        }, 30);
+                    });
+                });
+            </script>
         ");
     }
 
@@ -160,7 +190,14 @@ class SurveyResultsController
         $resultsHtml = '';
 
         if ($totalResponses === 0) {
-            $resultsHtml = '<p>Ще немає відповідей на це опитування.</p>';
+            $resultsHtml = '<div class="no-results">
+                <h3>Ще немає відповідей</h3>
+                <p>Це опитування ще не має відповідей. Поділіться посиланням щоб отримати перші результати!</p>
+                <div class="share-buttons">
+                    <button onclick="copyToClipboard()" class="btn btn-primary">Копіювати посилання</button>
+                    <a href="/surveys/view?id=' . $survey['id'] . '" class="btn btn-secondary">Пройти самому</a>
+                </div>
+            </div>';
         } else {
             $questionNumber = 1;
             foreach ($questions as $question) {
@@ -191,7 +228,11 @@ class SurveyResultsController
                         $questionResultHtml .= "<div class='text-answers'>";
                         foreach (array_slice($textAnswers, 0, 10) as $answer) {
                             $answerText = htmlspecialchars($answer['answer_text']);
-                            $questionResultHtml .= "<p class='text-answer'>\"$answerText\"</p>";
+                            $correctnessClass = '';
+                            if (isset($answer['is_correct'])) {
+                                $correctnessClass = $answer['is_correct'] ? ' correct-text' : ' incorrect-text';
+                            }
+                            $questionResultHtml .= "<p class='text-answer{$correctnessClass}'>\"$answerText\"</p>";
                         }
                         if (count($textAnswers) > 10) {
                             $remaining = count($textAnswers) - 10;
@@ -199,7 +240,7 @@ class SurveyResultsController
                         }
                         $questionResultHtml .= "</div>";
                     } else {
-                        $questionResultHtml .= "<p>Немає відповідей на це питання.</p>";
+                        $questionResultHtml .= "<p class='no-answers'>Немає відповідей на це питання.</p>";
                     }
                 }
 
@@ -213,13 +254,30 @@ class SurveyResultsController
             }
         }
 
-        return $this->renderPage("Результати опитування", "
+        return $this->buildHtmlPage("Результати опитування", "
             <div class='header-actions'>
                 <div>
                     <h1>Результати: " . htmlspecialchars($survey['title']) . "</h1>
                     <p><strong>Всього відповідей: {$totalResponses}</strong></p>
                 </div>
                 " . $this->renderUserNav() . "
+            </div>
+            
+            <div class='survey-summary'>
+                <div class='summary-stats'>
+                    <div class='summary-item'>
+                        <span class='summary-number'>{$totalResponses}</span>
+                        <span class='summary-label'>Відповідей</span>
+                    </div>
+                    <div class='summary-item'>
+                        <span class='summary-number'>" . count($questions) . "</span>
+                        <span class='summary-label'>Питань</span>
+                    </div>
+                    <div class='summary-item'>
+                        <span class='summary-number'>" . date('d.m.Y', strtotime($survey['created_at'])) . "</span>
+                        <span class='summary-label'>Створено</span>
+                    </div>
+                </div>
             </div>
             
             <div class='results'>
@@ -229,11 +287,96 @@ class SurveyResultsController
             <div class='form-actions'>
                 <a href='/surveys' class='btn btn-primary'>До списку опитувань</a>
                 <a href='/surveys/view?id={$survey['id']}' class='btn btn-secondary'>Пройти опитування</a>
+                " . (Session::isLoggedIn() && Survey::isAuthor($survey['id'], Session::getUserId()) ?
+                "<a href='/surveys/edit?id={$survey['id']}' class='btn btn-secondary'>Редагувати</a>
+                     <a href='/surveys/export-results?id={$survey['id']}&format=csv' class='btn btn-outline'>Експорт CSV</a>" : "") . "
             </div>
+            
+            <style>
+                .no-results {
+                    text-align: center;
+                    padding: 3rem;
+                    background: #f8f9fa;
+                    border-radius: 12px;
+                    margin: 2rem 0;
+                }
+                .share-buttons {
+                    margin-top: 1.5rem;
+                }
+                .survey-summary {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 2rem;
+                    border-radius: 12px;
+                    margin-bottom: 2rem;
+                }
+                .summary-stats {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                    gap: 2rem;
+                    text-align: center;
+                }
+                .summary-number {
+                    display: block;
+                    font-size: 2.5rem;
+                    font-weight: bold;
+                    color: #f1c40f;
+                }
+                .summary-label {
+                    font-size: 1rem;
+                    opacity: 0.9;
+                }
+                .text-answer {
+                    background: #f8f9fa;
+                    padding: 0.8rem;
+                    border-radius: 6px;
+                    margin: 0.5rem 0;
+                    border-left: 4px solid #dee2e6;
+                }
+                .text-answer.correct-text {
+                    background: #d4edda;
+                    border-left-color: #28a745;
+                }
+                .text-answer.incorrect-text {
+                    background: #f8d7da;
+                    border-left-color: #dc3545;
+                }
+                .no-answers {
+                    color: #6c757d;
+                    font-style: italic;
+                    text-align: center;
+                    padding: 2rem;
+                }
+                .more-answers {
+                    color: #6c757d;
+                    font-style: italic;
+                    text-align: center;
+                    margin-top: 1rem;
+                }
+            </style>
+            
+            <script>
+                function copyToClipboard() {
+                    const url = window.location.origin + '/surveys/view?id={$survey['id']}';
+                    navigator.clipboard.writeText(url).then(function() {
+                        alert('Посилання скопійовано!');
+                    });
+                }
+                
+                // Анімація прогрес-барів
+                document.addEventListener('DOMContentLoaded', function() {
+                    const progressBars = document.querySelectorAll('.progress');
+                    progressBars.forEach(bar => {
+                        const width = bar.style.width;
+                        bar.style.width = '0%';
+                        setTimeout(() => {
+                            bar.style.width = width;
+                        }, 300);
+                    });
+                });
+            </script>
         ");
     }
-
-    // === ДОПОМІЖНІ МЕТОДИ ===
 
     /**
      * Визначити рівень результату
@@ -276,39 +419,5 @@ class SurveyResultsController
                     <a href='/register' class='btn btn-sm'>Реєстрація</a>
                 </div>";
         }
-    }
-
-    /**
-     * Відобразити базову сторінку
-     */
-    private function renderPage(string $title, string $content): string
-    {
-        $flashSuccess = Session::getFlashMessage('success');
-        $flashError = Session::getFlashMessage('error');
-
-        $flashHtml = '';
-        if ($flashSuccess) {
-            $flashHtml .= "<div class='flash-message success'>{$flashSuccess}</div>";
-        }
-        if ($flashError) {
-            $flashHtml .= "<div class='flash-message error'>{$flashError}</div>";
-        }
-
-        return "
-        <!DOCTYPE html>
-        <html lang='uk'>
-        <head>
-            <meta charset='UTF-8'>
-            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-            <title>{$title}</title>
-            <link rel='stylesheet' href='/assets/css/style.css'>
-        </head>
-        <body>
-            <div class='container'>
-                {$flashHtml}
-                {$content}
-            </div>
-        </body>
-        </html>";
     }
 }

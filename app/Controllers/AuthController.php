@@ -1,95 +1,123 @@
 <?php
 
 /**
- * Контролер для авторизації та реєстрації користувачів
+ * Оновлений контролер для авторизації та реєстрації користувачів
+ * Тепер успадковує від BaseController та використовує ResponseManager
  */
-class AuthController
+class AuthController extends BaseController
 {
+    public function __construct()
+    {
+        parent::__construct();
+    }
+
     public function showLogin(): void
     {
-        $content = $this->renderLoginForm();
-        echo $content;
+        $this->safeExecute(function() {
+            $content = $this->renderLoginForm();
+
+            // Вимикаємо кешування для форм
+            $this->responseManager
+                ->setNoCacheHeaders()
+                ->sendSuccess($content);
+        });
     }
 
     public function login(): void
     {
-        $email = $_POST['email'] ?? '';
-        $password = $_POST['password'] ?? '';
+        $this->safeExecute(function() {
+            $email = $this->postParam('email', '');
+            $password = $this->postParam('password', '');
 
-        if (empty($email) || empty($password)) {
-            $content = $this->renderLoginForm('Заповніть всі поля');
-            echo $content;
-            return;
-        }
-
-        try {
-            $user = User::authenticate($email, $password);
-
-            if ($user) {
-                session_start();
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['user_email'] = $user['email'];
-                $_SESSION['user_name'] = $user['name'];
-                $_SESSION['user_role'] = $user['role'];
-                header('Location: /surveys');
-                exit;
-            } else {
-                $content = $this->renderLoginForm('Невірний email або пароль');
-                echo $content;
+            if (empty($email) || empty($password)) {
+                $content = $this->renderLoginForm('Заповніть всі поля');
+                $this->responseManager
+                    ->setNoCacheHeaders()
+                    ->sendClientError(ResponseManager::STATUS_BAD_REQUEST, $content);
+                return;
             }
-        } catch (Exception $e) {
-            $content = $this->renderLoginForm('Помилка при авторизації. Спробуйте пізніше.');
-            echo $content;
-        }
+
+            try {
+                $user = User::authenticate($email, $password);
+
+                if ($user) {
+                    session_start();
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['user_email'] = $user['email'];
+                    $_SESSION['user_name'] = $user['name'];
+                    $_SESSION['user_role'] = $user['role'];
+
+                    $this->redirect('/surveys');
+                } else {
+                    $content = $this->renderLoginForm('Невірний email або пароль');
+                    $this->responseManager
+                        ->setNoCacheHeaders()
+                        ->sendClientError(ResponseManager::STATUS_UNAUTHORIZED, $content);
+                }
+            } catch (Exception $e) {
+                throw new DatabaseException($e->getMessage(), 'Помилка при авторизації');
+            }
+        });
     }
 
     public function showRegister(): void
     {
-        $content = $this->renderRegisterForm();
-        echo $content;
+        $this->safeExecute(function() {
+            $content = $this->renderRegisterForm();
+
+            $this->responseManager
+                ->setNoCacheHeaders()
+                ->sendSuccess($content);
+        });
     }
 
     public function register(): void
     {
-        $name = $_POST['name'] ?? '';
-        $email = $_POST['email'] ?? '';
-        $password = $_POST['password'] ?? '';
-        $confirmPassword = $_POST['confirm_password'] ?? '';
+        $this->safeExecute(function() {
+            $name = $this->postParam('name', '');
+            $email = $this->postParam('email', '');
+            $password = $this->postParam('password', '');
+            $confirmPassword = $this->postParam('confirm_password', '');
 
-        $errors = $this->validateRegistration($name, $email, $password, $confirmPassword);
+            $errors = $this->validateRegistration($name, $email, $password, $confirmPassword);
 
-        if (empty($errors)) {
-            try {
-                // Перевіряємо чи не існує вже користувач з таким email
-                if (User::emailExists($email)) {
-                    $errors[] = "Користувач з таким email вже існує";
-                } else {
-                    $userId = User::create($name, $email, $password);
+            if (empty($errors)) {
+                try {
+                    // Перевіряємо чи не існує вже користувач з таким email
+                    if (User::emailExists($email)) {
+                        $errors[] = "Користувач з таким email вже існує";
+                    } else {
+                        $userId = User::create($name, $email, $password);
 
-                    // Автоматично логінимо користувача після реєстрації
-                    session_start();
-                    $_SESSION['user_id'] = $userId;
-                    $_SESSION['user_email'] = $email;
-                    $_SESSION['user_name'] = $name;
-                    $_SESSION['user_role'] = 'user';
-                    header('Location: /surveys');
-                    exit;
+                        // Автоматично логінимо користувача після реєстрації
+                        session_start();
+                        $_SESSION['user_id'] = $userId;
+                        $_SESSION['user_email'] = $email;
+                        $_SESSION['user_name'] = $name;
+                        $_SESSION['user_role'] = 'user';
+
+                        $this->redirect('/surveys');
+                        return;
+                    }
+                } catch (Exception $e) {
+                    throw new DatabaseException($e->getMessage(), 'Помилка при реєстрації');
                 }
-            } catch (Exception $e) {
-                $errors[] = "Помилка при реєстрації. Спробуйте пізніше.";
             }
-        }
 
-        $content = $this->renderRegisterForm($errors);
-        echo $content;
+            // Якщо є помилки - показуємо форму з помилками
+            if (!empty($errors)) {
+                throw new ValidationException($errors);
+            }
+        });
     }
 
     public function logout(): void
     {
-        session_start();
-        session_destroy();
-        header('Location: /');
-        exit;
+        $this->safeExecute(function() {
+            session_start();
+            session_destroy();
+            $this->redirect('/');
+        });
     }
 
     private function validateRegistration(string $name, string $email, string $password, string $confirmPassword): array
@@ -120,14 +148,15 @@ class AuthController
     private function renderLoginForm(string $error = ''): string
     {
         $errorHtml = $error ? "<div class='error-message'>{$error}</div>" : '';
+        $email = htmlspecialchars($this->postParam('email', ''));
 
-        return $this->renderPage("Вхід", "
+        return $this->buildHtmlPage("Вхід", "
             <h1>Вхід до системи</h1>
             {$errorHtml}
             <form method='POST' action='/login'>
                 <div class='form-group'>
                     <label for='email'>Email:</label>
-                    <input type='email' id='email' name='email' required value='" . ($_POST['email'] ?? '') . "'>
+                    <input type='email' id='email' name='email' required value='{$email}'>
                 </div>
                 <div class='form-group'>
                     <label for='password'>Пароль:</label>
@@ -146,15 +175,15 @@ class AuthController
     {
         $errorHtml = '';
         if (!empty($errors)) {
-            $errorList = implode('</li><li>', $errors);
+            $errorList = implode('</li><li>', array_map('htmlspecialchars', $errors));
             $errorHtml = "<div class='error-message'><ul><li>{$errorList}</li></ul></div>";
         }
 
         // Зберігаємо введені дані при помилці
-        $name = htmlspecialchars($_POST['name'] ?? '');
-        $email = htmlspecialchars($_POST['email'] ?? '');
+        $name = htmlspecialchars($this->postParam('name', ''));
+        $email = htmlspecialchars($this->postParam('email', ''));
 
-        return $this->renderPage("Реєстрація", "
+        return $this->buildHtmlPage("Реєстрація", "
             <h1>Реєстрація нового користувача</h1>
             {$errorHtml}
             <form method='POST' action='/register'>
@@ -181,24 +210,5 @@ class AuthController
                 </div>
             </form>
         ");
-    }
-
-    private function renderPage(string $title, string $content): string
-    {
-        return "
-        <!DOCTYPE html>
-        <html lang='uk'>
-        <head>
-            <meta charset='UTF-8'>
-            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-            <title>{$title}</title>
-            <link rel='stylesheet' href='/assets/css/style.css'>
-        </head>
-        <body>
-            <div class='container'>
-                {$content}
-            </div>
-        </body>
-        </html>";
     }
 }
