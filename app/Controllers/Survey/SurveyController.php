@@ -1,30 +1,50 @@
 <?php
 
 /**
- * Виправлений SurveyController з повною реалізацією методу view та обробки відповідей
+ * Рефакторений SurveyController згідно з принципами SOLID
+ *
+ * SOLID принципи:
+ * - SRP: Контролер відповідає тільки за обробку HTTP запитів та координацію
+ * - OCP: Легко розширюється новими методами без зміни існуючих
+ * - LSP: Може заміщати BaseController
+ * - ISP: Використовує спеціалізовані інтерфейси
+ * - DIP: Залежить від абстракцій, а не від конкретних класів
  */
 class SurveyController extends BaseController
 {
     private SurveyValidator $validator;
     private QuestionService $questionService;
+    private SurveyViewFactory $viewFactory;
 
-    public function __construct()
-    {
+    public function __construct(
+        SurveyValidator $validator = null,
+        QuestionService $questionService = null,
+        SurveyViewFactory $viewFactory = null
+    ) {
         parent::__construct();
-        $this->validator = new SurveyValidator();
-        $this->questionService = new QuestionService();
+
+        // Dependency Injection з fallback до створення екземплярів
+        $this->validator = $validator ?? new SurveyValidator();
+        $this->questionService = $questionService ?? new QuestionService();
+        $this->viewFactory = $viewFactory ?? new SurveyViewFactory();
     }
 
     /**
-     * Показати список опитувань з кешуванням
+     * Показати список активних опитувань
      */
     public function index(): void
     {
         $this->safeExecute(function() {
             $surveys = Survey::getAllActive();
-            $content = $this->renderSurveysList($surveys);
 
-            // Кешуємо список опитувань на 30 хвилин
+            $view = $this->viewFactory->createListView([
+                'title' => 'Доступні опитування',
+                'surveys' => $surveys
+            ]);
+
+            $content = $view->render();
+
+            // Кешуємо список на 30 хвилин
             $this->responseManager
                 ->setCacheHeaders(1800)
                 ->sendSuccess($content);
@@ -39,9 +59,12 @@ class SurveyController extends BaseController
         $this->safeExecute(function() {
             $this->requireAuth();
 
-            $content = $this->renderCreateForm();
+            $view = $this->viewFactory->createCreateView([
+                'title' => 'Створити нове опитування'
+            ]);
 
-            // Для форм вимикаємо кешування
+            $content = $view->render();
+
             $this->responseManager
                 ->setNoCacheHeaders()
                 ->sendSuccess($content);
@@ -49,40 +72,24 @@ class SurveyController extends BaseController
     }
 
     /**
-     * Зберегти нове опитування з валідацією
+     * Зберегти нове опитування
      */
     public function store(): void
     {
         $this->safeExecute(function() {
             $this->requireAuth();
 
-            $title = $this->postParam('title', '');
-            $description = $this->postParam('description', '');
-            $userId = Session::getUserId();
-
-            // Валідуємо дані
-            $errors = $this->validator->validateSurveyData($title, $description);
+            $data = $this->extractSurveyData();
+            $errors = $this->validator->validateSurveyData($data['title'], $data['description']);
 
             if (!empty($errors)) {
-                if ($this->isAjaxRequest()) {
-                    $this->sendAjaxResponse(false, $errors, 'Помилки валідації');
-                } else {
-                    throw new ValidationException($errors);
-                }
+                $this->handleValidationErrors($errors, $data);
                 return;
             }
 
             try {
-                $surveyId = Survey::create($title, $description, $userId);
-
-                $successMessage = 'Опитування успішно створено! Тепер додайте питання.';
-                $redirectUrl = "/surveys/edit?id={$surveyId}";
-
-                if ($this->isAjaxRequest()) {
-                    $this->sendAjaxResponse(true, ['survey_id' => $surveyId], $successMessage);
-                } else {
-                    $this->redirectWithMessage($redirectUrl, 'success', $successMessage);
-                }
+                $surveyId = Survey::create($data['title'], $data['description'], Session::getUserId());
+                $this->handleSuccessfulCreation($surveyId);
 
             } catch (Exception $e) {
                 throw new DatabaseException($e->getMessage(), 'Помилка при створенні опитування');
@@ -99,22 +106,19 @@ class SurveyController extends BaseController
             $this->requireAuth();
 
             $surveyId = $this->getIntParam('id');
-            $survey = $this->validator->validateAndGetSurvey($surveyId);
-
-            if (!$survey) {
-                throw new NotFoundException('Опитування не знайдено');
-            }
-
-            if (!Survey::isAuthor($surveyId, Session::getUserId())) {
-                throw new ForbiddenException('У вас немає прав для редагування цього опитування');
-            }
+            $survey = $this->validateSurveyAccess($surveyId);
 
             $questions = Question::getBySurveyId($surveyId, true);
             $this->questionService->loadQuestionsWithOptions($questions);
 
-            $content = $this->renderEditForm($survey, $questions);
+            $view = $this->viewFactory->createEditView([
+                'title' => 'Редагування опитування',
+                'survey' => $survey,
+                'questions' => $questions
+            ]);
 
-            // Редагування не кешуємо
+            $content = $view->render();
+
             $this->responseManager
                 ->setNoCacheHeaders()
                 ->sendSuccess($content);
@@ -122,7 +126,7 @@ class SurveyController extends BaseController
     }
 
     /**
-     * Показати опитування для проходження - ПОВНА РЕАЛІЗАЦІЯ
+     * Показати опитування для проходження
      */
     public function view(): void
     {
@@ -134,28 +138,45 @@ class SurveyController extends BaseController
                 throw new NotFoundException('Опитування не знайдено');
             }
 
-            if (!$survey['is_active']) {
-                throw new ForbiddenException('Це опитування неактивне');
-            }
-
-            // Перевіряємо чи користувач вже проходив опитування
-            if (Session::isLoggedIn() && SurveyResponse::hasUserResponded($surveyId, Session::getUserId())) {
-                $this->redirectWithMessage(
-                    "/surveys/results?id={$surveyId}",
-                    'error',
-                    'Ви вже проходили це опитування'
-                );
-                return;
-            }
+            $this->checkUserResponseStatus($surveyId);
 
             $questions = Question::getBySurveyId($surveyId);
             $this->questionService->loadQuestionsWithOptions($questions);
 
-            $content = $this->renderSurveyView($survey, $questions);
+            $view = $this->viewFactory->createViewView([
+                'title' => 'Проходження опитування',
+                'survey' => $survey,
+                'questions' => $questions
+            ]);
 
-            // Кешуємо опитування на 1 годину
+            $content = $view->render();
+
             $this->responseManager
                 ->setCacheHeaders(3600)
+                ->sendSuccess($content);
+        });
+    }
+
+    /**
+     * Показати мої опитування
+     */
+    public function my(): void
+    {
+        $this->safeExecute(function() {
+            $this->requireAuth();
+
+            $userId = Session::getUserId();
+            $surveys = Survey::getByUserId($userId);
+
+            $view = $this->viewFactory->createMyView([
+                'title' => 'Мої опитування',
+                'surveys' => $surveys
+            ]);
+
+            $content = $view->render();
+
+            $this->responseManager
+                ->setNoCacheHeaders()
                 ->sendSuccess($content);
         });
     }
@@ -169,55 +190,34 @@ class SurveyController extends BaseController
             $this->requireAuth();
 
             $surveyId = $this->getIntParam('survey_id');
-            $questionText = $this->postParam('question_text', '');
-            $questionType = $this->postParam('question_type', '');
-            $isRequired = (bool)$this->postParam('is_required');
-            $points = $this->getIntParam('points', 1);
-            $correctAnswer = $this->postParam('correct_answer', '') ?: null;
-            $options = $this->postParam('options', []);
-            $correctOptions = $this->postParam('correct_options', []);
+            $this->validateSurveyAccess($surveyId);
 
-            // Валідація
-            $survey = $this->validator->validateAndGetSurvey($surveyId);
-            if (!$survey) {
-                throw new NotFoundException('Опитування не знайдено');
-            }
-
-            if (!Survey::isAuthor($surveyId, Session::getUserId())) {
-                throw new ForbiddenException('У вас немає прав для редагування цього опитування');
-            }
-
-            $errors = $this->validator->validateQuestionData($questionText, $questionType, $options, $points);
+            $questionData = $this->extractQuestionData();
+            $errors = $this->validator->validateQuestionData(
+                $questionData['text'],
+                $questionData['type'],
+                $questionData['options'],
+                $questionData['points']
+            );
 
             if (!empty($errors)) {
-                if ($this->isAjaxRequest()) {
-                    $this->sendAjaxResponse(false, $errors, 'Помилки валідації');
-                } else {
-                    throw new ValidationException($errors);
-                }
+                $this->handleQuestionValidationErrors($errors, $surveyId);
                 return;
             }
 
             try {
                 $this->questionService->createQuestionWithOptions(
                     $surveyId,
-                    $questionText,
-                    $questionType,
-                    $isRequired,
-                    $correctAnswer,
-                    $points,
-                    $options,
-                    $correctOptions
+                    $questionData['text'],
+                    $questionData['type'],
+                    $questionData['required'],
+                    $questionData['correct_answer'],
+                    $questionData['points'],
+                    $questionData['options'],
+                    $questionData['correct_options']
                 );
 
-                $successMessage = 'Питання успішно додано';
-                $redirectUrl = "/surveys/edit?id={$surveyId}";
-
-                if ($this->isAjaxRequest()) {
-                    $this->sendAjaxResponse(true, null, $successMessage);
-                } else {
-                    $this->redirectWithMessage($redirectUrl, 'success', $successMessage);
-                }
+                $this->handleSuccessfulQuestionCreation($surveyId);
 
             } catch (Exception $e) {
                 throw new DatabaseException($e->getMessage(), 'Помилка при додаванні питання');
@@ -226,420 +226,31 @@ class SurveyController extends BaseController
     }
 
     /**
-     * НОВА РЕАЛІЗАЦІЯ: Відобразити опитування для проходження
-     */
-    private function renderSurveyView(array $survey, array $questions): string
-    {
-        $questionsHtml = '';
-        $questionNumber = 1;
-
-        if (empty($questions)) {
-            $questionsHtml = '
-            <div class="no-questions">
-                <h3>В опитуванні ще немає питань</h3>
-                <p>Автор опитування ще не додав питання. Спробуйте пізніше.</p>
-            </div>';
-        } else {
-            foreach ($questions as $question) {
-                $requiredMark = $question['is_required'] ? '<span class="required">*</span>' : '';
-                $questionText = htmlspecialchars($question['question_text']);
-                $questionType = $question['question_type'];
-                $questionId = $question['id'];
-
-                $inputHtml = '';
-
-                switch ($questionType) {
-                    case Question::TYPE_RADIO:
-                    case Question::TYPE_CHECKBOX:
-                        $options = $question['options'] ?? [];
-                        if (!empty($options)) {
-                            $inputType = $questionType === Question::TYPE_RADIO ? 'radio' : 'checkbox';
-                            $inputName = $questionType === Question::TYPE_RADIO ? "answers[{$questionId}]" : "answers[{$questionId}][]";
-
-                            foreach ($options as $option) {
-                                $optionId = $option['id'];
-                                $optionText = htmlspecialchars($option['option_text']);
-                                $inputHtml .= "
-                                <label class='option-label'>
-                                    <input type='{$inputType}' name='{$inputName}' value='{$optionId}' />
-                                    {$optionText}
-                                </label>";
-                            }
-                        }
-                        break;
-
-                    case Question::TYPE_TEXT:
-                        $required = $question['is_required'] ? 'required' : '';
-                        $inputHtml = "<input type='text' class='form-control' name='answers[{$questionId}]' placeholder='Введіть вашу відповідь' {$required} />";
-                        break;
-
-                    case Question::TYPE_TEXTAREA:
-                        $required = $question['is_required'] ? 'required' : '';
-                        $inputHtml = "<textarea class='form-control' name='answers[{$questionId}]' rows='4' placeholder='Введіть вашу відповідь' {$required}></textarea>";
-                        break;
-                }
-
-                $questionsHtml .= "
-                <div class='question' id='question-{$questionId}'>
-                    <h3>{$questionNumber}. {$questionText} {$requiredMark}</h3>
-                    <div class='question-input'>
-                        {$inputHtml}
-                    </div>
-                </div>";
-
-                $questionNumber++;
-            }
-        }
-
-        $isQuiz = Question::isQuiz($survey['id']);
-        $surveyTypeText = $isQuiz ? 'квіз' : 'опитування';
-        $submitButtonText = $isQuiz ? 'Завершити квіз' : 'Надіслати відповіді';
-
-        $authPrompt = '';
-        if (!Session::isLoggedIn()) {
-            $authPrompt = "
-            <div class='auth-prompt'>
-                <p><strong>Підказка:</strong> <a href='/login'>Увійдіть в систему</a> щоб зберегти свої результати та переглядати їх пізніше.</p>
-            </div>";
-        }
-
-        return $this->buildPageContent("Проходження: " . htmlspecialchars($survey['title']), "
-            <div class='survey-header'>
-                <h1>" . htmlspecialchars($survey['title']) . "</h1>
-                <p class='survey-description'>" . htmlspecialchars($survey['description']) . "</p>
-                <div class='survey-meta'>
-                    <span class='survey-type'>Тип: " . ucfirst($surveyTypeText) . "</span>
-                    <span class='survey-author'>Автор: " . htmlspecialchars($survey['author_name']) . "</span>
-                    <span class='survey-questions'>Питань: " . count($questions) . "</span>
-                </div>
-                {$authPrompt}
-            </div>
-
-            <form method='POST' action='/surveys/submit' id='survey-form' class='survey-form'>
-                <input type='hidden' name='survey_id' value='{$survey['id']}' />
-                
-                <div class='questions-container'>
-                    {$questionsHtml}
-                </div>
-
-                " . (!empty($questions) ? "
-                <div class='form-actions survey-actions'>
-                    <button type='submit' class='btn btn-success btn-large'>{$submitButtonText}</button>
-                    <a href='/surveys' class='btn btn-secondary'>Скасувати</a>
-                </div>" : "
-                <div class='form-actions'>
-                    <a href='/surveys' class='btn btn-primary'>Назад до списку</a>
-                </div>") . "
-            </form>
-
-            <script>
-                document.getElementById('survey-form').addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    
-                    // Показуємо індикатор завантаження
-                    const submitBtn = this.querySelector('button[type=\"submit\"]');
-                    const originalText = submitBtn.textContent;
-                    submitBtn.textContent = 'Відправка...';
-                    submitBtn.disabled = true;
-                    
-                    // Валідація на клієнті
-                    const requiredQuestions = this.querySelectorAll('.question:has([required])');
-                    let hasErrors = false;
-                    
-                    requiredQuestions.forEach(question => {
-                        const inputs = question.querySelectorAll('input[required], textarea[required]');
-                        let hasValue = false;
-                        
-                        inputs.forEach(input => {
-                            if (input.type === 'radio' || input.type === 'checkbox') {
-                                if (input.checked) hasValue = true;
-                            } else if (input.value.trim()) {
-                                hasValue = true;
-                            }
-                        });
-                        
-                        question.classList.toggle('error', !hasValue);
-                        if (!hasValue) hasErrors = true;
-                    });
-                    
-                    if (hasErrors) {
-                        alert('Будь ласка, відповідьте на всі обов\\'язкові питання');
-                        submitBtn.textContent = originalText;
-                        submitBtn.disabled = false;
-                        return;
-                    }
-                    
-                    // Відправляємо форму
-                    const formData = new FormData(this);
-                    
-                    fetch('/surveys/submit', {
-                        method: 'POST',
-                        body: formData,
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Network response was not ok');
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.success) {
-                            // Перенаправляємо на результати
-                            const responseId = data.data ? data.data.response_id : '';
-                            const redirectUrl = responseId ? 
-                                '/surveys/results?id={$survey['id']}&response=' + responseId :
-                                '/surveys/results?id={$survey['id']}';
-                            
-                            // Показуємо повідомлення перед перенаправленням
-                            alert(data.message);
-                            window.location.href = redirectUrl;
-                        } else {
-                            alert('Помилка: ' + (data.message || 'Невідома помилка'));
-                            submitBtn.textContent = originalText;
-                            submitBtn.disabled = false;
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('Виникла помилка при відправці відповідей');
-                        
-                        // Fallback - звичайна відправка форми
-                        submitBtn.textContent = originalText;
-                        submitBtn.disabled = false;
-                        this.submit();
-                    });
-                });
-                
-                // Додаємо плавну прокрутку між питаннями
-                const questions = document.querySelectorAll('.question');
-                questions.forEach((question, index) => {
-                    question.style.animationDelay = (index * 0.1) + 's';
-                    question.classList.add('fade-in');
-                });
-            </script>
-
-            <style>
-                .survey-header {
-                    text-align: center;
-                    margin-bottom: 3rem;
-                    padding: 2rem;
-                    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-                    border-radius: 15px;
-                    border-left: 5px solid #3498db;
-                }
-                
-                .survey-description {
-                    font-size: 1.1rem;
-                    color: #6c757d;
-                    margin: 1rem 0 1.5rem 0;
-                    line-height: 1.6;
-                }
-                
-                .survey-meta {
-                    display: flex;
-                    justify-content: center;
-                    gap: 2rem;
-                    flex-wrap: wrap;
-                    margin-top: 1rem;
-                }
-                
-                .survey-meta span {
-                    background: white;
-                    padding: 0.5rem 1rem;
-                    border-radius: 20px;
-                    font-size: 0.9rem;
-                    color: #495057;
-                    border: 2px solid #dee2e6;
-                }
-                
-                .auth-prompt {
-                    background: #fff3cd;
-                    border: 1px solid #ffeaa7;
-                    border-radius: 8px;
-                    padding: 1rem;
-                    margin-top: 1.5rem;
-                    text-align: center;
-                }
-                
-                .auth-prompt a {
-                    color: #856404;
-                    font-weight: bold;
-                    text-decoration: none;
-                }
-                
-                .auth-prompt a:hover {
-                    text-decoration: underline;
-                }
-                
-                .questions-container {
-                    margin: 2rem 0;
-                }
-                
-                .question {
-                    background: white;
-                    border: 2px solid #e9ecef;
-                    border-radius: 15px;
-                    padding: 2rem;
-                    margin-bottom: 2rem;
-                    transition: all 0.3s ease;
-                    opacity: 0;
-                    transform: translateY(20px);
-                }
-                
-                .question.fade-in {
-                    animation: fadeInUp 0.6s ease forwards;
-                }
-                
-                @keyframes fadeInUp {
-                    to {
-                        opacity: 1;
-                        transform: translateY(0);
-                    }
-                }
-                
-                .question:hover {
-                    border-color: #3498db;
-                    box-shadow: 0 4px 15px rgba(52, 152, 219, 0.1);
-                }
-                
-                .question.error {
-                    border-color: #e74c3c;
-                    background: #fdf2f2;
-                }
-                
-                .question h3 {
-                    margin-bottom: 1.5rem;
-                    color: #2c3e50;
-                    font-size: 1.3rem;
-                }
-                
-                .required {
-                    color: #e74c3c;
-                    font-weight: bold;
-                }
-                
-                .question-input {
-                    margin-top: 1rem;
-                }
-                
-                .option-label {
-                    display: block;
-                    margin: 1rem 0;
-                    padding: 1rem;
-                    background: #f8f9fa;
-                    border-radius: 10px;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
-                    border: 2px solid transparent;
-                }
-                
-                .option-label:hover {
-                    background: #e9ecef;
-                    border-color: #3498db;
-                    transform: translateX(5px);
-                }
-                
-                .option-label input {
-                    margin-right: 1rem;
-                    transform: scale(1.3);
-                }
-                
-                .survey-actions {
-                    background: #f8f9fa;
-                    padding: 2rem;
-                    border-radius: 15px;
-                    text-align: center;
-                    margin-top: 3rem;
-                }
-                
-                .no-questions {
-                    text-align: center;
-                    padding: 4rem 2rem;
-                    background: #f8f9fa;
-                    border-radius: 15px;
-                    color: #6c757d;
-                }
-                
-                .no-questions h3 {
-                    color: #495057;
-                    margin-bottom: 1rem;
-                }
-                
-                @media (max-width: 768px) {
-                    .survey-meta {
-                        flex-direction: column;
-                        gap: 0.5rem;
-                    }
-                    
-                    .question {
-                        padding: 1.5rem;
-                    }
-                    
-                    .survey-actions {
-                        padding: 1.5rem;
-                    }
-                }
-            </style>
-        ");
-    }
-
-    /**
-     * Показати мої опитування
-     */
-    public function my(): void
-    {
-        $this->safeExecute(function() {
-            $this->requireAuth();
-
-            $userId = Session::getUserId();
-            $surveys = Survey::getByUserId($userId);
-            $content = $this->renderMySurveys($surveys);
-
-            // Особисті опитування не кешуємо - динамічні дані
-            $this->responseManager
-                ->setNoCacheHeaders()
-                ->sendSuccess($content);
-        });
-    }
-
-    /**
-     * Видалити питання з опитування
+     * Видалити питання
      */
     public function deleteQuestion(): void
     {
         $this->safeExecute(function() {
             $this->requireAuth();
 
-            $questionId = (int)$this->postParam('question_id', 0);
-            $surveyId = (int)$this->postParam('survey_id', 0);
+            $questionId = $this->getIntParam('question_id');
+            $surveyId = $this->getIntParam('survey_id');
 
-            if ($questionId <= 0 || $surveyId <= 0) {
-                throw new ValidationException(['Невірні параметри']);
-            }
+            $this->validateSurveyAccess($surveyId);
 
-            // Перевіряємо права доступу
-            if (!Survey::isAuthor($surveyId, Session::getUserId())) {
-                throw new ForbiddenException('У вас немає прав для редагування цього опитування');
-            }
-
-            // Перевіряємо чи існує питання
-            $question = Question::findById($questionId);
-            if (!$question || $question['survey_id'] != $surveyId) {
-                throw new NotFoundException('Питання не знайдено');
+            $errors = $this->validator->validateQuestionDeletion($questionId, $surveyId);
+            if (!empty($errors)) {
+                throw new ValidationException($errors);
             }
 
             try {
-                // Видаляємо питання разом з варіантами відповідей
                 $this->questionService->deleteQuestion($questionId);
-
                 $this->redirectWithMessage(
                     "/surveys/edit?id={$surveyId}",
                     'success',
                     'Питання успішно видалено'
                 );
+
             } catch (Exception $e) {
                 throw new DatabaseException($e->getMessage(), 'Помилка при видаленні питання');
             }
@@ -657,445 +268,159 @@ class SurveyController extends BaseController
             $surveyId = $this->getIntParam('id');
             $format = $this->getStringParam('format', 'csv');
 
-            $survey = Survey::findById($surveyId);
-            if (!$survey) {
-                throw new NotFoundException('Опитування не знайдено');
+            $survey = $this->validateSurveyAccess($surveyId);
+
+            $errors = $this->validator->validateExportParams($surveyId, $format);
+            if (!empty($errors)) {
+                throw new ValidationException($errors);
             }
 
-            if (!Survey::isAuthor($surveyId, Session::getUserId())) {
-                throw new ForbiddenException('У вас немає прав для експорту цього опитування');
-            }
+            try {
+                $exportData = $this->generateExportData($surveyId);
+                $filename = "survey_{$surveyId}_results_" . date('Y-m-d_H-i-s') . ".{$format}";
 
-            // Генеруємо дані для експорту
-            $exportData = $this->generateExportData($surveyId);
-            $filename = "survey_{$surveyId}_results_" . date('Y-m-d_H-i-s') . ".{$format}";
+                if ($format === 'csv') {
+                    $csvContent = $this->generateCsvContent($exportData);
+                    $this->downloadCsv($csvContent, $filename);
+                } else {
+                    throw new ValidationException(['Непідтримуваний формат експорту']);
+                }
 
-            if ($format === 'csv') {
-                $csvContent = $this->generateCsvContent($exportData);
-                $this->downloadCsv($csvContent, $filename);
-            } else {
-                throw new ValidationException(['Непідтримуваний формат експорту']);
+            } catch (Exception $e) {
+                throw new DatabaseException($e->getMessage(), 'Помилка при експорті');
             }
         });
     }
 
-    // === ПРИВАТНІ МЕТОДИ ===
+    // === ПРИВАТНІ МЕТОДИ (Business Logic) ===
 
-    private function renderSurveysList(array $surveys): string
+    /**
+     * Витягти дані опитування з запиту
+     */
+    private function extractSurveyData(): array
     {
-        $surveyItems = '';
+        return [
+            'title' => $this->postParam('title', ''),
+            'description' => $this->postParam('description', '')
+        ];
+    }
 
-        if (empty($surveys)) {
-            $surveyItems = '<p>Наразі немає активних опитувань.</p>';
+    /**
+     * Витягти дані питання з запиту
+     */
+    private function extractQuestionData(): array
+    {
+        return [
+            'text' => $this->postParam('question_text', ''),
+            'type' => $this->postParam('question_type', ''),
+            'required' => (bool)$this->postParam('is_required'),
+            'points' => $this->getIntParam('points', 1),
+            'correct_answer' => $this->postParam('correct_answer', '') ?: null,
+            'options' => $this->postParam('options', []),
+            'correct_options' => $this->postParam('correct_options', [])
+        ];
+    }
+
+    /**
+     * Валідувати доступ до опитування
+     */
+    private function validateSurveyAccess(int $surveyId): array
+    {
+        $survey = $this->validator->validateAndGetSurvey($surveyId);
+
+        if (!$survey) {
+            throw new NotFoundException('Опитування не знайдено');
+        }
+
+        if (!Survey::isAuthor($surveyId, Session::getUserId())) {
+            throw new ForbiddenException('У вас немає прав для редагування цього опитування');
+        }
+
+        return $survey;
+    }
+
+    /**
+     * Перевірити статус відповіді користувача
+     */
+    private function checkUserResponseStatus(int $surveyId): void
+    {
+        if (Session::isLoggedIn() && SurveyResponse::hasUserResponded($surveyId, Session::getUserId())) {
+            $this->redirectWithMessage(
+                "/surveys/results?id={$surveyId}",
+                'info',
+                'Ви вже проходили це опитування'
+            );
+        }
+    }
+
+    /**
+     * Обробити помилки валідації опитування
+     */
+    private function handleValidationErrors(array $errors, array $data): void
+    {
+        if ($this->isAjaxRequest()) {
+            $this->sendAjaxResponse(false, $errors, 'Помилки валідації');
         } else {
-            foreach ($surveys as $survey) {
-                $responseCount = SurveyResponse::getCountBySurveyId($survey['id']);
-                $isQuiz = Question::isQuiz($survey['id']);
-                $surveyType = $isQuiz ? 'Квіз' : 'Опитування';
-                $surveyTypeClass = $isQuiz ? 'quiz-badge' : 'survey-badge';
+            $view = $this->viewFactory->createCreateView([
+                'title' => 'Створення опитування',
+                'errors' => $errors,
+                'title' => $data['title'],
+                'description' => $data['description']
+            ]);
 
-                $surveyItems .= "
-                    <div class='survey-item'>
-                        <div class='survey-header'>
-                            <h3>" . htmlspecialchars($survey['title']) . "</h3>
-                            <span class='type-badge {$surveyTypeClass}'>{$surveyType}</span>
-                        </div>
-                        <p>" . htmlspecialchars($survey['description']) . "</p>
-                        <p><small>Автор: " . htmlspecialchars($survey['author_name']) . " | Відповідей: {$responseCount}</small></p>
-                        <div class='survey-actions'>
-                            <a href='/surveys/view?id={$survey['id']}' class='btn btn-primary'>Пройти {$surveyType}</a>
-                            <a href='/surveys/results?id={$survey['id']}' class='btn btn-secondary'>Результати</a>
-                        </div>
-                    </div>";
-            }
+            $content = $view->render();
+
+            $this->responseManager
+                ->setNoCacheHeaders()
+                ->sendClientError(ResponseManager::STATUS_UNPROCESSABLE_ENTITY, $content);
         }
-
-        $createButton = '';
-        if (Session::isLoggedIn()) {
-            $createButton = "<a href='/surveys/create' class='btn btn-success'>Створити нове опитування</a>";
-        }
-
-        return $this->buildPageContent("Список опитувань", "
-            <div class='header-actions'>
-                <h1>Доступні опитування</h1>
-                " . $this->renderUserNav() . "
-            </div>
-            
-            <div class='survey-list'>
-                {$surveyItems}
-            </div>
-            
-            <div class='page-actions'>
-                {$createButton}
-                <a href='/' class='btn btn-secondary'>На головну</a>
-                " . (Session::isLoggedIn() ? "<a href='/surveys/my' class='btn btn-secondary'>Мої опитування</a>" : "") . "
-            </div>
-        ");
     }
 
-    private function renderCreateForm(array $errors = [], string $title = '', string $description = ''): string
+    /**
+     * Обробити успішне створення опитування
+     */
+    private function handleSuccessfulCreation(int $surveyId): void
     {
-        $errorHtml = '';
-        if (!empty($errors)) {
-            $errorList = implode('</li><li>', $errors);
-            $errorHtml = "<div class='error-message'><ul><li>{$errorList}</li></ul></div>";
-        }
+        $successMessage = 'Опитування успішно створено! Тепер додайте питання.';
+        $redirectUrl = "/surveys/edit?id={$surveyId}";
 
-        $title = htmlspecialchars($title);
-        $description = htmlspecialchars($description);
-
-        return $this->buildPageContent("Створення опитування", "
-            <div class='header-actions'>
-                <h1>Створити нове опитування</h1>
-                " . $this->renderUserNav() . "
-            </div>
-            
-            {$errorHtml}
-            
-            <form method='POST' action='/surveys/store' id='create-survey-form'>
-                <div class='form-group'>
-                    <label for='title'>Назва опитування:</label>
-                    <input type='text' id='title' name='title' required value='{$title}' maxlength='255'>
-                </div>
-                <div class='form-group'>
-                    <label for='description'>Опис:</label>
-                    <textarea id='description' name='description' rows='4' maxlength='1000'>{$description}</textarea>
-                </div>
-                
-                <div class='form-actions'>
-                    <button type='submit' class='btn btn-success'>Створити опитування</button>
-                    <a href='/surveys' class='btn btn-secondary'>Скасувати</a>
-                </div>
-            </form>
-            
-            <script>
-                document.getElementById('create-survey-form').addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    
-                    const formData = new FormData(this);
-                    
-                    fetch('/surveys/store', {
-                        method: 'POST',
-                        body: formData,
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            window.location.href = '/surveys/edit?id=' + data.data.survey_id;
-                        } else {
-                            alert('Помилка: ' + data.message);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        this.submit();
-                    });
-                });
-            </script>
-        ");
-    }
-
-    private function renderEditForm(array $survey, array $questions): string
-    {
-        $questionsHtml = '';
-
-        if (!empty($questions)) {
-            foreach ($questions as $question) {
-                $questionType = htmlspecialchars($question['question_type']);
-                $questionText = htmlspecialchars($question['question_text']);
-                $required = $question['is_required'] ? ' (обов\'язкове)' : '';
-                $points = $question['points'] ?? 1;
-                $correctAnswer = htmlspecialchars($question['correct_answer'] ?? '');
-
-                $optionsHtml = '';
-                if (isset($question['options']) && !empty($question['options'])) {
-                    $optionsHtml = '<ul class="question-options">';
-                    foreach ($question['options'] as $option) {
-                        $correctMark = $option['is_correct'] ? ' ✓' : '';
-                        $correctClass = $option['is_correct'] ? ' class="correct-option"' : '';
-                        $optionsHtml .= '<li' . $correctClass . '>' . htmlspecialchars($option['option_text']) . $correctMark . '</li>';
-                    }
-                    $optionsHtml .= '</ul>';
-                }
-
-                $correctAnswerHtml = '';
-                if (!empty($correctAnswer)) {
-                    $correctAnswerHtml = '<p class="correct-answer">Правильна відповідь: <strong>' . $correctAnswer . '</strong></p>';
-                }
-
-                $questionsHtml .= "
-                    <div class='question-item'>
-                        <div class='question-header'>
-                            <h4>{$questionText}{$required} <span class='question-points'>({$points} б.)</span></h4>
-                            <span class='question-type'>" . Question::getQuestionTypes()[$questionType] . "</span>
-                        </div>
-                        {$optionsHtml}
-                        {$correctAnswerHtml}
-                        <form method='POST' action='/surveys/delete-question' style='display: inline;'>
-                            <input type='hidden' name='question_id' value='{$question['id']}'>
-                            <input type='hidden' name='survey_id' value='{$survey['id']}'>
-                            <button type='submit' class='btn btn-danger btn-sm' onclick='return confirm(\"Видалити це питання?\")'>Видалити</button>
-                        </form>
-                    </div>";
-            }
+        if ($this->isAjaxRequest()) {
+            $this->sendAjaxResponse(true, ['survey_id' => $surveyId], $successMessage);
         } else {
-            $questionsHtml = '<p>Ще немає питань. Додайте перше питання нижче.</p>';
+            $this->redirectWithMessage($redirectUrl, 'success', $successMessage);
         }
-
-        return $this->buildPageContent("Редагування опитування", "
-            <div class='header-actions'>
-                <h1>Редагування: " . htmlspecialchars($survey['title']) . "</h1>
-                " . $this->renderUserNav() . "
-            </div>
-            
-            <div class='survey-edit-sections'>
-                <section class='existing-questions'>
-                    <h2>Питання опитування</h2>
-                    <div class='questions-list'>
-                        {$questionsHtml}
-                    </div>
-                </section>
-                
-                <section class='add-question'>
-                    <h2>Додати нове питання</h2>
-                    <form method='POST' action='/surveys/add-question' id='questionForm'>
-                        <input type='hidden' name='survey_id' value='{$survey['id']}'>
-                        
-                        <div class='form-group'>
-                            <label for='question_text'>Текст питання:</label>
-                            <textarea id='question_text' name='question_text' required rows='3'></textarea>
-                        </div>
-                        
-                        <div class='form-row'>
-                            <div class='form-group'>
-                                <label for='question_type'>Тип питання:</label>
-                                <select id='question_type' name='question_type' required onchange='toggleOptions()'>
-                                    <option value=''>Оберіть тип</option>
-                                    <option value='radio'>Один варіант (радіо)</option>
-                                    <option value='checkbox'>Декілька варіантів (чекбокс)</option>
-                                    <option value='text'>Короткий текст</option>
-                                    <option value='textarea'>Довгий текст</option>
-                                </select>
-                            </div>
-                            
-                            <div class='form-group'>
-                                <label for='points'>Бали за правильну відповідь:</label>
-                                <input type='number' id='points' name='points' value='1' min='0' max='100'>
-                            </div>
-                        </div>
-                        
-                        <div class='form-group'>
-                            <label>
-                                <input type='checkbox' name='is_required' value='1'>
-                                Обов'язкове питання
-                            </label>
-                        </div>
-                        
-                        <div id='text-answer-section' style='display: none;'>
-                            <div class='form-group'>
-                                <label for='correct_answer'>Правильна відповідь (для квізу):</label>
-                                <input type='text' id='correct_answer' name='correct_answer' placeholder='Введіть правильну відповідь'>
-                                <small>Залиште порожнім, якщо це звичайне опитування</small>
-                            </div>
-                        </div>
-                        
-                        <div id='options-section' style='display: none;'>
-                            <div class='form-group'>
-                                <label>Варіанти відповідей:</label>
-                                <div id='options-container'>
-                                    <div class='option-input'>
-                                        <input type='text' name='options[]' placeholder='Варіант 1'>
-                                        <label><input type='checkbox' name='correct_options[]' value='0'> Правильна</label>
-                                    </div>
-                                    <div class='option-input'>
-                                        <input type='text' name='options[]' placeholder='Варіант 2'>
-                                        <label><input type='checkbox' name='correct_options[]' value='1'> Правильна</label>
-                                    </div>
-                                </div>
-                                <button type='button' onclick='addOption()' class='btn btn-sm btn-secondary'>Додати варіант</button>
-                                <small>Позначте правильні відповіді для створення квізу</small>
-                            </div>
-                        </div>
-                        
-                        <div class='form-actions'>
-                            <button type='submit' class='btn btn-success'>Додати питання</button>
-                        </div>
-                    </form>
-                </section>
-            </div>
-            
-            <div class='page-actions'>
-                <a href='/surveys/view?id={$survey['id']}' class='btn btn-primary'>Переглянути опитування</a>
-                <a href='/surveys/export-results?id={$survey['id']}&format=csv' class='btn btn-secondary'>Експорт CSV</a>
-                <a href='/surveys/my' class='btn btn-secondary'>Мої опитування</a>
-            </div>
-            
-            <script>
-                let optionIndex = 2;
-                
-                function toggleOptions() {
-                    const type = document.getElementById('question_type').value;
-                    const optionsSection = document.getElementById('options-section');
-                    const textAnswerSection = document.getElementById('text-answer-section');
-                    
-                    if (type === 'radio' || type === 'checkbox') {
-                        optionsSection.style.display = 'block';
-                        textAnswerSection.style.display = 'none';
-                    } else if (type === 'text' || type === 'textarea') {
-                        optionsSection.style.display = 'none';
-                        textAnswerSection.style.display = 'block';
-                    } else {
-                        optionsSection.style.display = 'none';
-                        textAnswerSection.style.display = 'none';
-                    }
-                }
-                
-                function addOption() {
-                    const container = document.getElementById('options-container');
-                    const optionDiv = document.createElement('div');
-                    optionDiv.className = 'option-input';
-                    optionDiv.innerHTML = `
-                        <input type='text' name='options[]' placeholder='Варіант \${optionIndex + 1}'>
-                        <label><input type='checkbox' name='correct_options[]' value='\${optionIndex}'> Правильна</label>
-                    `;
-                    container.appendChild(optionDiv);
-                    optionIndex++;
-                }
-            </script>
-        ");
     }
 
-    private function renderMySurveys(array $surveys): string
+    /**
+     * Обробити помилки валідації питання
+     */
+    private function handleQuestionValidationErrors(array $errors, int $surveyId): void
     {
-        $surveyItems = '';
-
-        if (empty($surveys)) {
-            $surveyItems = '
-            <div class="no-surveys">
-                <div class="no-surveys-icon">📋</div>
-                <h3>У вас ще немає створених опитувань</h3>
-                <p>Створіть своє перше опитування та почніть збирати відгуки!</p>
-                <a href="/surveys/create" class="btn btn-success btn-large">Створити перше опитування</a>
-            </div>';
+        if ($this->isAjaxRequest()) {
+            $this->sendAjaxResponse(false, $errors, 'Помилки валідації');
         } else {
-            foreach ($surveys as $survey) {
-                $status = $survey['is_active'] ? 'Активне' : 'Неактивне';
-                $statusClass = $survey['is_active'] ? 'status-active' : 'status-inactive';
-                $responseCount = SurveyResponse::getCountBySurveyId($survey['id']);
-                $questionCount = count(Question::getBySurveyId($survey['id']));
-
-                // Визначаємо тип опитування
-                $isQuiz = Question::isQuiz($survey['id']);
-                $surveyType = $isQuiz ? 'Квіз' : 'Опитування';
-                $surveyTypeClass = $isQuiz ? 'quiz-badge' : 'survey-badge';
-
-                $surveyItems .= "
-                <div class='survey-item my-survey-item'>
-                    <div class='survey-header'>
-                        <h3>" . htmlspecialchars($survey['title']) . "</h3>
-                        <div class='survey-badges'>
-                            <span class='type-badge {$surveyTypeClass}'>{$surveyType}</span>
-                            <span class='status-badge {$statusClass}'>{$status}</span>
-                        </div>
-                    </div>
-                    
-                    <p class='survey-description'>" . htmlspecialchars($survey['description']) . "</p>
-                    
-                    <div class='survey-stats'>
-                        <div class='stat-item'>
-                            <span class='stat-number'>{$questionCount}</span>
-                            <span class='stat-label'>Питань</span>
-                        </div>
-                        <div class='stat-item'>
-                            <span class='stat-number'>{$responseCount}</span>
-                            <span class='stat-label'>Відповідей</span>
-                        </div>
-                        <div class='stat-item'>
-                            <span class='stat-number'>" . date('d.m.Y', strtotime($survey['created_at'])) . "</span>
-                            <span class='stat-label'>Створено</span>
-                        </div>
-                    </div>
-                    
-                    <div class='survey-actions'>
-                        <a href='/surveys/edit?id={$survey['id']}' class='btn btn-primary'>
-                            <span class='btn-icon'>✏️</span> Редагувати
-                        </a>
-                        <a href='/surveys/view?id={$survey['id']}' class='btn btn-secondary'>
-                            <span class='btn-icon'>👁️</span> Переглянути
-                        </a>
-                        <a href='/surveys/results?id={$survey['id']}' class='btn btn-secondary'>
-                            <span class='btn-icon'>📊</span> Результати
-                        </a>
-                        " . ($responseCount > 0 ? "
-                        <a href='/surveys/export-results?id={$survey['id']}&format=csv' class='btn btn-outline'>
-                            <span class='btn-icon'>📥</span> Експорт
-                        </a>" : "") . "
-                    </div>
-                </div>";
-            }
+            throw new ValidationException($errors);
         }
-
-        return $this->buildPageContent("Мої опитування", "
-            <div class='header-actions'>
-                <h1>Мої опитування</h1>
-                " . $this->renderUserNav() . "
-            </div>
-            
-            <div class='my-surveys-container'>
-                {$surveyItems}
-            </div>
-            
-            <div class='page-actions'>
-                <a href='/surveys/create' class='btn btn-success'>
-                    <span class='btn-icon'>➕</span> Створити нове
-                </a>
-                <a href='/surveys' class='btn btn-secondary'>
-                    <span class='btn-icon'>📋</span> Всі опитування
-                </a>
-            </div>
-        ");
     }
 
-    private function renderUserNav(): string
+    /**
+     * Обробити успішне створення питання
+     */
+    private function handleSuccessfulQuestionCreation(int $surveyId): void
     {
-        if (Session::isLoggedIn()) {
-            $userName = Session::getUserName();
-            return "
-                <div class='user-nav'>
-                    <span>Привіт, " . htmlspecialchars($userName) . "!</span>
-                    <a href='/logout' class='btn btn-sm'>Вийти</a>
-                </div>";
+        $successMessage = 'Питання успішно додано';
+        $redirectUrl = "/surveys/edit?id={$surveyId}";
+
+        if ($this->isAjaxRequest()) {
+            $this->sendAjaxResponse(true, null, $successMessage);
         } else {
-            return "
-                <div class='user-nav'>
-                    <a href='/login' class='btn btn-sm'>Увійти</a>
-                    <a href='/register' class='btn btn-sm'>Реєстрація</a>
-                </div>";
+            $this->redirectWithMessage($redirectUrl, 'success', $successMessage);
         }
     }
 
-    private function buildPageContent(string $title, string $content): string
-    {
-        return "
-        <!DOCTYPE html>
-        <html lang='uk'>
-        <head>
-            <meta charset='UTF-8'>
-            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-            <title>{$title}</title>
-            <link rel='stylesheet' href='/assets/css/style.css'>
-        </head>
-        <body>
-            <div class='container'>
-                {$content}
-            </div>
-        </body>
-        </html>";
-    }
-
+    /**
+     * Генерація даних для експорту
+     */
     private function generateExportData(int $surveyId): array
     {
         return Database::select(
@@ -1112,6 +437,9 @@ class SurveyController extends BaseController
         );
     }
 
+    /**
+     * Генерація CSV контенту
+     */
     private function generateCsvContent(array $data): string
     {
         $output = "ID відповіді,Дата,Користувач,Email,Питання,Відповідь,Правильно,Бали\n";
@@ -1131,4 +459,65 @@ class SurveyController extends BaseController
 
         return $output;
     }
+}
+
+/**
+ * Фабрика для створення Survey Views
+ * Демонструє Factory Pattern та Dependency Inversion
+ */
+class SurveyViewFactory
+{
+    /**
+     * Створити View для списку опитувань
+     */
+    public function createListView(array $data): ViewInterface
+    {
+        require_once __DIR__ . '/../Views/Survey/SurveyListView.php';
+        return new SurveyListView($data);
+    }
+
+    /**
+     * Створити View для створення опитування
+     */
+    public function createCreateView(array $data): ViewInterface
+    {
+        require_once __DIR__ . '/../Views/Survey/SurveyCreateView.php';
+        return new SurveyCreateView($data);
+    }
+
+    /**
+     * Створити View для редагування опитування
+     */
+    public function createEditView(array $data): ViewInterface
+    {
+        require_once __DIR__ . '/../Views/Survey/SurveyEditView.php';
+        return new SurveyEditView($data);
+    }
+
+    /**
+     * Створити View для проходження опитування
+     */
+    public function createViewView(array $data): ViewInterface
+    {
+        require_once __DIR__ . '/../Views/Survey/SurveyViewView.php';
+        return new SurveyViewView($data);
+    }
+
+    /**
+     * Створити View для моїх опитувань
+     */
+    public function createMyView(array $data): ViewInterface
+    {
+        require_once __DIR__ . '/../Views/Survey/MySurveysView.php';
+        return new MySurveysView($data);
+    }
+}
+
+/**
+ * Інтерфейс для Survey Views
+ */
+interface ViewInterface
+{
+    public function setData(array $data): self;
+    public function render(): string;
 }

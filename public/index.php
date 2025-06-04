@@ -1,3 +1,4 @@
+
 <?php
 
 // Підключення всіх необхідних файлів
@@ -22,13 +23,24 @@ require_once '../app/Services/QuestionService.php';
 require_once '../app/Services/AdminValidator.php';
 require_once '../app/Services/AdminService.php';
 
-// Завантажуємо контролери (тепер успадковані від BaseController)
+// Завантажуємо базовий клас View та компоненти
+require_once '../app/Views/BaseView.php';
+require_once '../app/Views/Layouts/AppLayout.php';
+require_once '../app/Views/Layouts/AdminLayout.php';
+require_once '../app/Views/Components/NavigationComponent.php';
+require_once '../app/Views/Components/AdminNavigationComponent.php';
+require_once '../app/Views/Components/PaginationComponent.php';
+require_once '../app/Views/Components/FlashMessageComponent.php';
+
+// Завантажуємо оновлені контролери (з Views)
 require_once '../app/Controllers/HomeController.php';
 require_once '../app/Controllers/AuthController.php';
-require_once '../app/Controllers/AdminController.php';
 require_once '../app/Controllers/Survey/SurveyController.php';
-require_once '../app/Controllers/Survey/SurveyResponseController.php';
-require_once '../app/Controllers/Survey/SurveyResultsController.php';
+require_once '../app/Controllers/AdminController.php';
+
+// Завантажуємо також старі контролери для сумісності
+//require_once '../app/Controllers/Survey/SurveyResponseController.php';
+//require_once '../app/Controllers/Survey/SurveyResultsController.php';
 
 // Налаштування для розробки (в продакшені відключити)
 error_reporting(E_ALL);
@@ -38,6 +50,30 @@ ini_set('error_log', '../logs/php_errors.log');
 
 // Встановлюємо часовий пояс
 date_default_timezone_set('Europe/Kyiv');
+
+// Автозавантажувач для Views
+spl_autoload_register(function ($className) {
+    // Автозавантаження Views
+    if (strpos($className, 'View') !== false) {
+        $viewPaths = [
+            '../app/Views/',
+            '../app/Views/Home/',
+            '../app/Views/Auth/',
+            '../app/Views/Survey/',
+            '../app/Views/Admin/',
+            '../app/Views/Components/',
+            '../app/Views/Layouts/'
+        ];
+
+        foreach ($viewPaths as $path) {
+            $file = $path . $className . '.php';
+            if (file_exists($file)) {
+                require_once $file;
+                return;
+            }
+        }
+    }
+});
 
 // Перевірка підключення до бази даних
 try {
@@ -55,23 +91,25 @@ $router = new Router();
 // Встановлюємо CORS заголовки для API
 $router->handleCors();
 
-// === ГОЛОВНА СТОРІНКА ===
+// === ГОЛОВНА СТОРІНКА (оновлений контролер) ===
 $router->get('/', 'HomeController', 'index');
 
-// === ОСНОВНІ СТОРІНКИ ОПИТУВАНЬ ===
+// === ОСНОВНІ СТОРІНКИ ОПИТУВАНЬ (оновлені контролери) ===
 $router->get('/surveys', 'SurveyController', 'index');
 $router->get('/surveys/create', 'SurveyController', 'create');
 $router->post('/surveys/store', 'SurveyController', 'store');
 $router->get('/surveys/edit', 'SurveyController', 'edit');
-$router->get('/surveys/view', 'SurveyController', 'view');
 $router->get('/surveys/my', 'SurveyController', 'my');
 
 // === РОБОТА З ПИТАННЯМИ ===
 $router->post('/surveys/add-question', 'SurveyController', 'addQuestion');
-$router->post('/surveys/delete-question', 'SurveyController', 'deleteQuestion');
+$router->post('/surveys/delete-question', 'SurveyController', 'deleteQuestion'); // Поки старий
 
 // === ЕКСПОРТ ДАНИХ ===
 $router->get('/surveys/export-results', 'SurveyController', 'exportResults');
+
+// === ПЕРЕГЛЯД ТА ПРОХОДЖЕННЯ ОПИТУВАНЬ (поки старі контролери) ===
+$router->get('/surveys/view', 'SurveyController', 'view');
 
 // === ОБРОБКА ВІДПОВІДЕЙ ===
 $router->post('/surveys/submit', 'SurveyResponseController', 'submit');
@@ -80,21 +118,21 @@ $router->get('/surveys/response-details', 'SurveyResponseController', 'responseD
 // === РЕЗУЛЬТАТИ ТА СТАТИСТИКА ===
 $router->get('/surveys/results', 'SurveyResultsController', 'results');
 
-// === АВТОРИЗАЦІЯ ТА РЕЄСТРАЦІЯ ===
+// === АВТОРИЗАЦІЯ ТА РЕЄСТРАЦІЯ (оновлені контролери) ===
 $router->get('/login', 'AuthController', 'showLogin');
 $router->post('/login', 'AuthController', 'login');
 $router->get('/register', 'AuthController', 'showRegister');
 $router->post('/register', 'AuthController', 'register');
 $router->get('/logout', 'AuthController', 'logout');
 
-// === АДМІН-ПАНЕЛЬ ===
+// === АДМІН-ПАНЕЛЬ (оновлені контролери) ===
 $router->get('/admin', 'AdminController', 'dashboard');
 $router->get('/admin/dashboard', 'AdminController', 'dashboard');
 
 // Управління користувачами
 $router->get('/admin/users', 'AdminController', 'users');
-$router->post('/admin/delete-user', 'AdminController', 'deleteUser');
-$router->post('/admin/change-user-role', 'AdminController', 'changeUserRole');
+$router->post('/admin/delete-user', 'AdminController', 'deleteUser'); // Поки старий
+$router->post('/admin/change-user-role', 'AdminController', 'changeUserRole'); // Поки старий
 
 // Управління опитуваннями
 $router->get('/admin/surveys', 'AdminController', 'surveys');
@@ -103,18 +141,12 @@ $router->post('/admin/toggle-survey-status', 'AdminController', 'toggleSurveySta
 
 // Статистика та експорт
 $router->get('/admin/survey-stats', 'AdminController', 'surveyStats');
-$router->get('/admin/export-stats', 'AdminController', 'exportStats');
+$router->get('/admin/export-stats', 'AdminController', 'exportStats'); // Поки старий
 
 // === API ЕНДПОІНТИ (для демонстрації) ===
 $router->get('/api/surveys', 'SurveyController', 'apiIndex');
 $router->get('/api/surveys/{id}', 'SurveyController', 'apiShow');
 $router->post('/api/surveys', 'SurveyController', 'apiStore');
-
-// === ТЕСТОВІ МАРШРУТИ ДЛЯ ДЕМОНСТРАЦІЇ ПОМИЛОК ===
-$router->get('/test/404', 'SurveyController', 'handleError');
-$router->get('/test/403', 'SurveyController', 'handleError');
-$router->get('/test/500', 'SurveyController', 'handleError');
-$router->get('/test/validation', 'SurveyController', 'handleError');
 
 // === MIDDLEWARE ===
 $router->addGlobalMiddleware(function() {
@@ -125,7 +157,6 @@ $router->addGlobalMiddleware(function() {
     $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
 
     error_log("Request: {$method} {$requestUri} from {$ip} - {$userAgent}");
-
 });
 
 // === ОБРОБКА ЗАПИТІВ ===
@@ -234,7 +265,7 @@ function checkMaintenance(): void
         $responseManager = ResponseManager::getInstance();
         $responseManager->sendServerError(
             ResponseManager::STATUS_SERVICE_UNAVAILABLE,
-            $responseManager->renderMaintenancePage()
+            renderMaintenancePage()
         );
         exit;
     }
