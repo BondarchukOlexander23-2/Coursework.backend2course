@@ -33,19 +33,21 @@ class SurveyListView extends BaseView
         }
 
         return "
-            <div class='header-actions'>
-                <h1>Доступні опитування</h1>
-                " . $this->component('Navigation') . "
-            </div>
-            
-            <div class='survey-list'>
-                {$surveyItems}
-            </div>
-            
-            <div class='page-actions'>
-                {$createButton}
-                <a href='/' class='btn btn-secondary'>На головну</a>
-                " . (Session::isLoggedIn() ? "<a href='/surveys/my' class='btn btn-secondary'>Мої опитування</a>" : "") . "
+            <div class='container'>
+                <div class='header-actions'>
+                    <h1>Доступні опитування</h1>
+                    " . $this->component('Navigation') . "
+                </div>
+                
+                <div class='survey-list'>
+                    {$surveyItems}
+                </div>
+                
+                <div class='page-actions'>
+                    {$createButton}
+                    <a href='/' class='btn btn-secondary'>На головну</a>
+                    " . (Session::isLoggedIn() ? "<a href='/surveys/my' class='btn btn-secondary'>Мої опитування</a>" : "") . "
+                </div>
             </div>";
     }
 }

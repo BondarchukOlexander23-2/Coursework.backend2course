@@ -37,16 +37,8 @@ require_once '../app/Controllers/HomeController.php';
 require_once '../app/Controllers/AuthController.php';
 require_once '../app/Controllers/Survey/SurveyController.php';
 require_once '../app/Controllers/AdminController.php';
-
-// Завантажуємо також старі контролери для сумісності
-//require_once '../app/Controllers/Survey/SurveyResponseController.php';
-//require_once '../app/Controllers/Survey/SurveyResultsController.php';
-
-// Налаштування для розробки (в продакшені відключити)
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-ini_set('log_errors', 1);
-ini_set('error_log', '../logs/php_errors.log');
+require_once '../app/Controllers/Survey/SurveyResponseController.php';
+require_once '../app/Controllers/Survey/SurveyResultsController.php';
 
 // Встановлюємо часовий пояс
 date_default_timezone_set('Europe/Kyiv');
@@ -284,46 +276,12 @@ function renderMaintenancePage(): string
         <meta name='viewport' content='width=device-width, initial-scale=1.0'>
         <title>Технічні роботи</title>
         <link rel='stylesheet' href='./assets/css/style.css'>
-        <style>
-            .maintenance-page {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                min-height: 100vh;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                padding: 20px;
-            }
-            .maintenance-content {
-                background: white;
-                border-radius: 15px;
-                padding: 3rem;
-                text-align: center;
-                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-                max-width: 500px;
-                width: 100%;
-            }
-            .maintenance-icon {
-                font-size: 4rem;
-                color: #f39c12;
-                margin-bottom: 1rem;
-            }
-            .maintenance-title {
-                font-size: 2rem;
-                color: #2c3e50;
-                margin-bottom: 1rem;
-            }
-            .maintenance-message {
-                color: #7f8c8d;
-                margin-bottom: 2rem;
-                line-height: 1.6;
-            }
-        </style>
     </head>
     <body>
         <div class='maintenance-page'>
             <div class='maintenance-content'>
                 <div class='maintenance-icon'>🔧</div>
-                <h1 class='maintenance-title'>Технічні роботи</h1>
+                <h1 class='maintenance-title'>Технічні шоколадки</h1>
                 <p class='maintenance-message'>
                     Наразі проводяться планові технічні роботи для покращення сервісу.
                     Спробуйте пізніше. Дякуємо за розуміння!
