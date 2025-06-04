@@ -73,18 +73,26 @@ class HomeView extends BaseView
     {
         if (Session::isLoggedIn()) {
             $userName = Session::getUserName();
+
+            // Кнопка адміна тільки для адмінів
+            $adminButton = "";
+            if (Session::isAdmin()) {
+                $adminButton = "<a href='/admin' class='btn btn-sm btn-warning'>⚙️ Адмін-панель</a>";
+            }
+
             return "
-                <div class='user-menu'>
-                    <span class='user-name'>Привіт, " . $this->escape($userName) . "!</span>
-                    <a href='/surveys/my' class='btn btn-sm btn-outline'>Мої опитування</a>
-                    <a href='/logout' class='btn btn-sm btn-secondary'>Вийти</a>
-                </div>";
+            <div class='user-menu'>
+                <span class='user-name'>Привіт, " . $this->escape($userName) . "!</span>
+                <a href='/surveys/my' class='btn btn-sm btn-outline'>Мої опитування</a>
+                {$adminButton}
+                <a href='/logout' class='btn btn-sm btn-secondary'>Вийти</a>
+            </div>";
         } else {
             return "
-                <div class='auth-buttons'>
-                    <a href='/login' class='btn btn-sm btn-outline'>Увійти</a>
-                    <a href='/register' class='btn btn-sm btn-primary'>Реєстрація</a>
-                </div>";
+            <div class='auth-buttons'>
+                <a href='/login' class='btn btn-sm btn-outline'>Увійти</a>
+                <a href='/register' class='btn btn-sm btn-primary'>Реєстрація</a>
+            </div>";
         }
     }
 
