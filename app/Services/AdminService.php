@@ -2,7 +2,6 @@
 
 /**
  * Сервіс адміністрування
- * Відповідає принципу Single Responsibility - бізнес-логіка адміністрування
  */
 class AdminService
 {
@@ -342,7 +341,6 @@ class AdminService
             'Загальний рахунок'
         ]);
 
-        // Дані
         foreach ($data as $row) {
             fputcsv($output, [
                 $row['id'],
@@ -366,8 +364,6 @@ class AdminService
      */
     private function exportToExcel(array $data, string $filename, string $surveyTitle): void
     {
-        // Для повноцінного Excel експорту потрібна бібліотека PhpSpreadsheet
-        // Поки що робимо через CSV з Excel-сумісними заголовками
         $this->exportToCsv($data, $filename, $surveyTitle);
     }
 

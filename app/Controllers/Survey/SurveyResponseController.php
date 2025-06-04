@@ -1,7 +1,8 @@
 <?php
 
 /**
- * Оновлений контролер для обробки відповідей на опитування з BaseController
+ * Виправлений контролер для обробки відповідей на опитування
+ * Дотримується принципів SOLID з повною обробкою всіх типів відповідей
  */
 class SurveyResponseController extends BaseController
 {
@@ -16,22 +17,52 @@ class SurveyResponseController extends BaseController
     }
 
     /**
-     * Обробити відповіді на опитування
+     * Обробити відповіді на опитування - ВИПРАВЛЕНА ВЕРСІЯ
      */
     public function submit(): void
     {
         $this->safeExecute(function() {
             $surveyId = $this->getIntParam('survey_id');
+            if (!$surveyId) {
+                $surveyId = (int)$this->postParam('survey_id', 0);
+            }
+
             $answers = $this->postParam('answers', []);
+
+            // Детальне логування для діагностики
+            error_log("Survey submission - Survey ID: " . $surveyId);
+            error_log("Survey submission - Answers: " . print_r($answers, true));
+
+            if ($surveyId <= 0) {
+                throw new ValidationException(['Невірний ID опитування']);
+            }
 
             $survey = $this->validator->validateAndGetSurvey($surveyId);
             if (!$survey) {
                 throw new NotFoundException('Опитування не знайдено');
             }
 
-            $questions = Question::getBySurveyId($surveyId, true);
-            $errors = $this->validator->validateAnswers($questions, $answers);
+            if (!$survey['is_active']) {
+                throw new ForbiddenException('Це опитування неактивне');
+            }
 
+            // Перевіряємо чи користувач вже відповідав
+            if (Session::isLoggedIn()) {
+                $userId = Session::getUserId();
+                if (SurveyResponse::hasUserResponded($surveyId, $userId)) {
+                    throw new ConflictException('Ви вже проходили це опитування');
+                }
+            }
+
+            $questions = Question::getBySurveyId($surveyId, true);
+            $this->questionService->loadQuestionsWithOptions($questions);
+
+            if (empty($questions)) {
+                throw new ValidationException(['Опитування не містить питань']);
+            }
+
+            // Валідуємо відповіді
+            $errors = $this->validator->validateAnswers($questions, $answers);
             if (!empty($errors)) {
                 if ($this->isAjaxRequest()) {
                     $this->sendAjaxResponse(false, $errors, 'Помилки валідації');
@@ -47,6 +78,8 @@ class SurveyResponseController extends BaseController
                 $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
                 $responseId = SurveyResponse::create($surveyId, $userId, $ipAddress);
 
+                error_log("Created response with ID: " . $responseId);
+
                 // Зберігаємо відповіді та підраховуємо результат
                 $totalScore = 0;
                 $maxScore = Question::getMaxPointsForSurvey($surveyId);
@@ -57,7 +90,7 @@ class SurveyResponseController extends BaseController
                     $questionType = $question['question_type'];
 
                     if (!isset($answers[$questionId])) {
-                        continue;
+                        continue; // Пропускаємо необов'язкові питання без відповідей
                     }
 
                     $answer = $answers[$questionId];
@@ -67,6 +100,7 @@ class SurveyResponseController extends BaseController
                     if ($isQuiz) {
                         $result = Question::checkUserAnswer($questionId, $answer);
                         $totalScore += $result['points'];
+                        error_log("Question {$questionId}: " . print_r($result, true));
                     }
 
                     // Зберігаємо відповідь
@@ -93,16 +127,71 @@ class SurveyResponseController extends BaseController
                         'response_id' => $responseId,
                         'total_score' => $totalScore,
                         'max_score' => $maxScore,
-                        'is_quiz' => $isQuiz
+                        'is_quiz' => $isQuiz,
+                        'redirect_url' => $redirectUrl
                     ], $message);
                 } else {
                     $this->redirectWithMessage($redirectUrl, 'success', $message);
                 }
 
             } catch (Exception $e) {
+                error_log("Error saving survey response: " . $e->getMessage());
                 throw new DatabaseException($e->getMessage(), 'Помилка при збереженні відповідей');
             }
         });
+    }
+
+    /**
+     * Зберегти відповідь на питання з перевіркою правильності - ВИПРАВЛЕНА ВЕРСІЯ
+     */
+    private function saveQuestionAnswer(int $responseId, array $question, $answer, array $result): void
+    {
+        $questionId = $question['id'];
+        $questionType = $question['question_type'];
+        $isCorrect = $result['is_correct'] ?? false;
+        $pointsEarned = $result['points'] ?? 0;
+
+        error_log("Saving answer for question {$questionId}, type: {$questionType}, answer: " . print_r($answer, true));
+
+        try {
+            switch ($questionType) {
+                case Question::TYPE_RADIO:
+                    if (is_numeric($answer) && $answer > 0) {
+                        QuestionAnswer::createOptionAnswer($responseId, $questionId, (int)$answer, $isCorrect, $pointsEarned);
+                        error_log("Saved radio answer: option {$answer}");
+                    }
+                    break;
+
+                case Question::TYPE_CHECKBOX:
+                    if (is_array($answer) && !empty($answer)) {
+                        $validAnswers = array_filter($answer, function($optionId) {
+                            return is_numeric($optionId) && $optionId > 0;
+                        });
+
+                        if (!empty($validAnswers)) {
+                            QuestionAnswer::createMultipleOptionAnswers($responseId, $questionId, $validAnswers, $isCorrect, $pointsEarned);
+                            error_log("Saved checkbox answers: " . implode(',', $validAnswers));
+                        }
+                    }
+                    break;
+
+                case Question::TYPE_TEXT:
+                case Question::TYPE_TEXTAREA:
+                    $answerText = trim($answer);
+                    if (!empty($answerText)) {
+                        QuestionAnswer::createTextAnswer($responseId, $questionId, $answerText, $isCorrect, $pointsEarned);
+                        error_log("Saved text answer: {$answerText}");
+                    }
+                    break;
+
+                default:
+                    error_log("Unknown question type: {$questionType}");
+                    break;
+            }
+        } catch (Exception $e) {
+            error_log("Error saving answer for question {$questionId}: " . $e->getMessage());
+            throw $e;
+        }
     }
 
     /**
@@ -136,38 +225,6 @@ class SurveyResponseController extends BaseController
                 ->setCacheHeaders(3600)
                 ->sendSuccess($content);
         });
-    }
-
-    /**
-     * Зберегти відповідь на питання з перевіркою правильності
-     */
-    private function saveQuestionAnswer(int $responseId, array $question, $answer, array $result): void
-    {
-        $questionId = $question['id'];
-        $questionType = $question['question_type'];
-        $isCorrect = $result['is_correct'] ?? false;
-        $pointsEarned = $result['points'] ?? 0;
-
-        switch ($questionType) {
-            case Question::TYPE_RADIO:
-                if (is_numeric($answer)) {
-                    QuestionAnswer::createOptionAnswer($responseId, $questionId, (int)$answer, $isCorrect, $pointsEarned);
-                }
-                break;
-
-            case Question::TYPE_CHECKBOX:
-                if (is_array($answer)) {
-                    QuestionAnswer::createMultipleOptionAnswers($responseId, $questionId, $answer, $isCorrect, $pointsEarned);
-                }
-                break;
-
-            case Question::TYPE_TEXT:
-            case Question::TYPE_TEXTAREA:
-                if (!empty(trim($answer))) {
-                    QuestionAnswer::createTextAnswer($responseId, $questionId, $answer, $isCorrect, $pointsEarned);
-                }
-                break;
-        }
     }
 
     /**

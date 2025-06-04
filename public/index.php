@@ -126,12 +126,6 @@ $router->addGlobalMiddleware(function() {
 
     error_log("Request: {$method} {$requestUri} from {$ip} - {$userAgent}");
 
-    // Перевірка rate limiting (базова реалізація)
-    $maxRequestsPerMinute = 60;
-    $cacheKey = "rate_limit:" . $ip;
-
-    // В реальному проєкті використовувати Redis або Memcached
-    // Тут просто демонстрація концепції
 });
 
 // === ОБРОБКА ЗАПИТІВ ===

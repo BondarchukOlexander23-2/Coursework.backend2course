@@ -833,15 +833,16 @@ h3 {
 }
 
 /* === РЕЗУЛЬТАТИ КВІЗІВ === */
-.user-result {
+
+.survey-summary {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     padding: 2rem;
-    border-radius: 15px;
+    border-radius: 12px;
     margin-bottom: 2rem;
-    text-align: center;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
+
 
 .user-result.highlight {
     animation: pulse 2s ease-in-out;
@@ -854,8 +855,8 @@ h3 {
 
 .user-result h3 {
     color: white;
-    margin-bottom: 1.5rem;
-    font-size: 1.8rem;
+    margin-bottom: 1.2rem;
+    font-size: 1.2rem;
 }
 
 .score-display {

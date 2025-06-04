@@ -94,7 +94,7 @@ class SurveyResultsController extends BaseController
             $percentage = $userResult['percentage'];
             $level = $this->getResultLevel($percentage);
             $userResultHtml = "
-                <div class='user-result highlight'>
+                <div class='survey-summary'>
                     <h3>Ваш результат</h3>
                     <div class='score-display'>
                         <span class='score'>{$userResult['total_score']}/{$userResult['max_score']}</span>

@@ -1,8 +1,7 @@
 <?php
 
 /**
- * Оновлений SurveyController з використанням ResponseManager та BaseController
- * Демонструє використання буферизації залежно від статус-кодів
+ * Виправлений SurveyController з повною реалізацією методу view та обробки відповідей
  */
 class SurveyController extends BaseController
 {
@@ -27,7 +26,7 @@ class SurveyController extends BaseController
 
             // Кешуємо список опитувань на 30 хвилин
             $this->responseManager
-                ->setCacheHeaders(1800) // 30 хвилин
+                ->setCacheHeaders(1800)
                 ->sendSuccess($content);
         });
     }
@@ -123,7 +122,7 @@ class SurveyController extends BaseController
     }
 
     /**
-     * Показати опитування для проходження
+     * Показати опитування для проходження - ПОВНА РЕАЛІЗАЦІЯ
      */
     public function view(): void
     {
@@ -133,6 +132,10 @@ class SurveyController extends BaseController
 
             if (!$survey) {
                 throw new NotFoundException('Опитування не знайдено');
+            }
+
+            if (!$survey['is_active']) {
+                throw new ForbiddenException('Це опитування неактивне');
             }
 
             // Перевіряємо чи користувач вже проходив опитування
@@ -223,6 +226,427 @@ class SurveyController extends BaseController
     }
 
     /**
+     * НОВА РЕАЛІЗАЦІЯ: Відобразити опитування для проходження
+     */
+    private function renderSurveyView(array $survey, array $questions): string
+    {
+        $questionsHtml = '';
+        $questionNumber = 1;
+
+        if (empty($questions)) {
+            $questionsHtml = '
+            <div class="no-questions">
+                <h3>В опитуванні ще немає питань</h3>
+                <p>Автор опитування ще не додав питання. Спробуйте пізніше.</p>
+            </div>';
+        } else {
+            foreach ($questions as $question) {
+                $requiredMark = $question['is_required'] ? '<span class="required">*</span>' : '';
+                $questionText = htmlspecialchars($question['question_text']);
+                $questionType = $question['question_type'];
+                $questionId = $question['id'];
+
+                $inputHtml = '';
+
+                switch ($questionType) {
+                    case Question::TYPE_RADIO:
+                    case Question::TYPE_CHECKBOX:
+                        $options = $question['options'] ?? [];
+                        if (!empty($options)) {
+                            $inputType = $questionType === Question::TYPE_RADIO ? 'radio' : 'checkbox';
+                            $inputName = $questionType === Question::TYPE_RADIO ? "answers[{$questionId}]" : "answers[{$questionId}][]";
+
+                            foreach ($options as $option) {
+                                $optionId = $option['id'];
+                                $optionText = htmlspecialchars($option['option_text']);
+                                $inputHtml .= "
+                                <label class='option-label'>
+                                    <input type='{$inputType}' name='{$inputName}' value='{$optionId}' />
+                                    {$optionText}
+                                </label>";
+                            }
+                        }
+                        break;
+
+                    case Question::TYPE_TEXT:
+                        $required = $question['is_required'] ? 'required' : '';
+                        $inputHtml = "<input type='text' class='form-control' name='answers[{$questionId}]' placeholder='Введіть вашу відповідь' {$required} />";
+                        break;
+
+                    case Question::TYPE_TEXTAREA:
+                        $required = $question['is_required'] ? 'required' : '';
+                        $inputHtml = "<textarea class='form-control' name='answers[{$questionId}]' rows='4' placeholder='Введіть вашу відповідь' {$required}></textarea>";
+                        break;
+                }
+
+                $questionsHtml .= "
+                <div class='question' id='question-{$questionId}'>
+                    <h3>{$questionNumber}. {$questionText} {$requiredMark}</h3>
+                    <div class='question-input'>
+                        {$inputHtml}
+                    </div>
+                </div>";
+
+                $questionNumber++;
+            }
+        }
+
+        $isQuiz = Question::isQuiz($survey['id']);
+        $surveyTypeText = $isQuiz ? 'квіз' : 'опитування';
+        $submitButtonText = $isQuiz ? 'Завершити квіз' : 'Надіслати відповіді';
+
+        $authPrompt = '';
+        if (!Session::isLoggedIn()) {
+            $authPrompt = "
+            <div class='auth-prompt'>
+                <p><strong>Підказка:</strong> <a href='/login'>Увійдіть в систему</a> щоб зберегти свої результати та переглядати їх пізніше.</p>
+            </div>";
+        }
+
+        return $this->buildPageContent("Проходження: " . htmlspecialchars($survey['title']), "
+            <div class='survey-header'>
+                <h1>" . htmlspecialchars($survey['title']) . "</h1>
+                <p class='survey-description'>" . htmlspecialchars($survey['description']) . "</p>
+                <div class='survey-meta'>
+                    <span class='survey-type'>Тип: " . ucfirst($surveyTypeText) . "</span>
+                    <span class='survey-author'>Автор: " . htmlspecialchars($survey['author_name']) . "</span>
+                    <span class='survey-questions'>Питань: " . count($questions) . "</span>
+                </div>
+                {$authPrompt}
+            </div>
+
+            <form method='POST' action='/surveys/submit' id='survey-form' class='survey-form'>
+                <input type='hidden' name='survey_id' value='{$survey['id']}' />
+                
+                <div class='questions-container'>
+                    {$questionsHtml}
+                </div>
+
+                " . (!empty($questions) ? "
+                <div class='form-actions survey-actions'>
+                    <button type='submit' class='btn btn-success btn-large'>{$submitButtonText}</button>
+                    <a href='/surveys' class='btn btn-secondary'>Скасувати</a>
+                </div>" : "
+                <div class='form-actions'>
+                    <a href='/surveys' class='btn btn-primary'>Назад до списку</a>
+                </div>") . "
+            </form>
+
+            <script>
+                document.getElementById('survey-form').addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    // Показуємо індикатор завантаження
+                    const submitBtn = this.querySelector('button[type=\"submit\"]');
+                    const originalText = submitBtn.textContent;
+                    submitBtn.textContent = 'Відправка...';
+                    submitBtn.disabled = true;
+                    
+                    // Валідація на клієнті
+                    const requiredQuestions = this.querySelectorAll('.question:has([required])');
+                    let hasErrors = false;
+                    
+                    requiredQuestions.forEach(question => {
+                        const inputs = question.querySelectorAll('input[required], textarea[required]');
+                        let hasValue = false;
+                        
+                        inputs.forEach(input => {
+                            if (input.type === 'radio' || input.type === 'checkbox') {
+                                if (input.checked) hasValue = true;
+                            } else if (input.value.trim()) {
+                                hasValue = true;
+                            }
+                        });
+                        
+                        question.classList.toggle('error', !hasValue);
+                        if (!hasValue) hasErrors = true;
+                    });
+                    
+                    if (hasErrors) {
+                        alert('Будь ласка, відповідьте на всі обов\\'язкові питання');
+                        submitBtn.textContent = originalText;
+                        submitBtn.disabled = false;
+                        return;
+                    }
+                    
+                    // Відправляємо форму
+                    const formData = new FormData(this);
+                    
+                    fetch('/surveys/submit', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            // Перенаправляємо на результати
+                            const responseId = data.data ? data.data.response_id : '';
+                            const redirectUrl = responseId ? 
+                                '/surveys/results?id={$survey['id']}&response=' + responseId :
+                                '/surveys/results?id={$survey['id']}';
+                            
+                            // Показуємо повідомлення перед перенаправленням
+                            alert(data.message);
+                            window.location.href = redirectUrl;
+                        } else {
+                            alert('Помилка: ' + (data.message || 'Невідома помилка'));
+                            submitBtn.textContent = originalText;
+                            submitBtn.disabled = false;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Виникла помилка при відправці відповідей');
+                        
+                        // Fallback - звичайна відправка форми
+                        submitBtn.textContent = originalText;
+                        submitBtn.disabled = false;
+                        this.submit();
+                    });
+                });
+                
+                // Додаємо плавну прокрутку між питаннями
+                const questions = document.querySelectorAll('.question');
+                questions.forEach((question, index) => {
+                    question.style.animationDelay = (index * 0.1) + 's';
+                    question.classList.add('fade-in');
+                });
+            </script>
+
+            <style>
+                .survey-header {
+                    text-align: center;
+                    margin-bottom: 3rem;
+                    padding: 2rem;
+                    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+                    border-radius: 15px;
+                    border-left: 5px solid #3498db;
+                }
+                
+                .survey-description {
+                    font-size: 1.1rem;
+                    color: #6c757d;
+                    margin: 1rem 0 1.5rem 0;
+                    line-height: 1.6;
+                }
+                
+                .survey-meta {
+                    display: flex;
+                    justify-content: center;
+                    gap: 2rem;
+                    flex-wrap: wrap;
+                    margin-top: 1rem;
+                }
+                
+                .survey-meta span {
+                    background: white;
+                    padding: 0.5rem 1rem;
+                    border-radius: 20px;
+                    font-size: 0.9rem;
+                    color: #495057;
+                    border: 2px solid #dee2e6;
+                }
+                
+                .auth-prompt {
+                    background: #fff3cd;
+                    border: 1px solid #ffeaa7;
+                    border-radius: 8px;
+                    padding: 1rem;
+                    margin-top: 1.5rem;
+                    text-align: center;
+                }
+                
+                .auth-prompt a {
+                    color: #856404;
+                    font-weight: bold;
+                    text-decoration: none;
+                }
+                
+                .auth-prompt a:hover {
+                    text-decoration: underline;
+                }
+                
+                .questions-container {
+                    margin: 2rem 0;
+                }
+                
+                .question {
+                    background: white;
+                    border: 2px solid #e9ecef;
+                    border-radius: 15px;
+                    padding: 2rem;
+                    margin-bottom: 2rem;
+                    transition: all 0.3s ease;
+                    opacity: 0;
+                    transform: translateY(20px);
+                }
+                
+                .question.fade-in {
+                    animation: fadeInUp 0.6s ease forwards;
+                }
+                
+                @keyframes fadeInUp {
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+                
+                .question:hover {
+                    border-color: #3498db;
+                    box-shadow: 0 4px 15px rgba(52, 152, 219, 0.1);
+                }
+                
+                .question.error {
+                    border-color: #e74c3c;
+                    background: #fdf2f2;
+                }
+                
+                .question h3 {
+                    margin-bottom: 1.5rem;
+                    color: #2c3e50;
+                    font-size: 1.3rem;
+                }
+                
+                .required {
+                    color: #e74c3c;
+                    font-weight: bold;
+                }
+                
+                .question-input {
+                    margin-top: 1rem;
+                }
+                
+                .option-label {
+                    display: block;
+                    margin: 1rem 0;
+                    padding: 1rem;
+                    background: #f8f9fa;
+                    border-radius: 10px;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    border: 2px solid transparent;
+                }
+                
+                .option-label:hover {
+                    background: #e9ecef;
+                    border-color: #3498db;
+                    transform: translateX(5px);
+                }
+                
+                .option-label input {
+                    margin-right: 1rem;
+                    transform: scale(1.3);
+                }
+                
+                .survey-actions {
+                    background: #f8f9fa;
+                    padding: 2rem;
+                    border-radius: 15px;
+                    text-align: center;
+                    margin-top: 3rem;
+                }
+                
+                .no-questions {
+                    text-align: center;
+                    padding: 4rem 2rem;
+                    background: #f8f9fa;
+                    border-radius: 15px;
+                    color: #6c757d;
+                }
+                
+                .no-questions h3 {
+                    color: #495057;
+                    margin-bottom: 1rem;
+                }
+                
+                @media (max-width: 768px) {
+                    .survey-meta {
+                        flex-direction: column;
+                        gap: 0.5rem;
+                    }
+                    
+                    .question {
+                        padding: 1.5rem;
+                    }
+                    
+                    .survey-actions {
+                        padding: 1.5rem;
+                    }
+                }
+            </style>
+        ");
+    }
+
+    /**
+     * Показати мої опитування
+     */
+    public function my(): void
+    {
+        $this->safeExecute(function() {
+            $this->requireAuth();
+
+            $userId = Session::getUserId();
+            $surveys = Survey::getByUserId($userId);
+            $content = $this->renderMySurveys($surveys);
+
+            // Особисті опитування не кешуємо - динамічні дані
+            $this->responseManager
+                ->setNoCacheHeaders()
+                ->sendSuccess($content);
+        });
+    }
+
+    /**
+     * Видалити питання з опитування
+     */
+    public function deleteQuestion(): void
+    {
+        $this->safeExecute(function() {
+            $this->requireAuth();
+
+            $questionId = (int)$this->postParam('question_id', 0);
+            $surveyId = (int)$this->postParam('survey_id', 0);
+
+            if ($questionId <= 0 || $surveyId <= 0) {
+                throw new ValidationException(['Невірні параметри']);
+            }
+
+            // Перевіряємо права доступу
+            if (!Survey::isAuthor($surveyId, Session::getUserId())) {
+                throw new ForbiddenException('У вас немає прав для редагування цього опитування');
+            }
+
+            // Перевіряємо чи існує питання
+            $question = Question::findById($questionId);
+            if (!$question || $question['survey_id'] != $surveyId) {
+                throw new NotFoundException('Питання не знайдено');
+            }
+
+            try {
+                // Видаляємо питання разом з варіантами відповідей
+                $this->questionService->deleteQuestion($questionId);
+
+                $this->redirectWithMessage(
+                    "/surveys/edit?id={$surveyId}",
+                    'success',
+                    'Питання успішно видалено'
+                );
+            } catch (Exception $e) {
+                throw new DatabaseException($e->getMessage(), 'Помилка при видаленні питання');
+            }
+        });
+    }
+
+    /**
      * Експорт результатів опитування
      */
     public function exportResults(): void
@@ -255,312 +679,7 @@ class SurveyController extends BaseController
         });
     }
 
-    /**
-     * Обробка помилок з правильними статус кодами
-     */
-    public function handleError(): void
-    {
-        $errorType = $this->getStringParam('type', 'general');
-
-        switch ($errorType) {
-            case 'not_found':
-                throw new NotFoundException('Сторінка не знайдена');
-
-            case 'forbidden':
-                throw new ForbiddenException('Доступ заборонено');
-
-            case 'validation':
-                throw new ValidationException(['Приклад помилки валідації']);
-
-            case 'server':
-                throw new Exception('Приклад серверної помилки');
-
-            default:
-                throw new BusinessLogicException('Невідомий тип помилки');
-        }
-    }
-    /**
-     * Показати мої опитування
-     */
-    public function my(): void
-    {
-        $this->safeExecute(function() {
-            $this->requireAuth();
-
-            $userId = Session::getUserId();
-            $surveys = Survey::getByUserId($userId);
-            $content = $this->renderMySurveys($surveys);
-
-            // Особисті опитування не кешуємо - динамічні дані
-            $this->responseManager
-                ->setNoCacheHeaders()
-                ->sendSuccess($content);
-        });
-    }
-
-    /**
-     * Відобразити мої опитування
-     */
-    private function renderMySurveys(array $surveys): string
-    {
-        $surveyItems = '';
-
-        if (empty($surveys)) {
-            $surveyItems = '
-            <div class="no-surveys">
-                <div class="no-surveys-icon">📋</div>
-                <h3>У вас ще немає створених опитувань</h3>
-                <p>Створіть своє перше опитування та почніть збирати відгуки!</p>
-                <a href="/surveys/create" class="btn btn-success btn-large">Створити перше опитування</a>
-            </div>';
-        } else {
-            foreach ($surveys as $survey) {
-                $status = $survey['is_active'] ? 'Активне' : 'Неактивне';
-                $statusClass = $survey['is_active'] ? 'status-active' : 'status-inactive';
-                $responseCount = SurveyResponse::getCountBySurveyId($survey['id']);
-                $questionCount = count(Question::getBySurveyId($survey['id']));
-
-                // Визначаємо тип опитування
-                $isQuiz = Question::isQuiz($survey['id']);
-                $surveyType = $isQuiz ? 'Квіз' : 'Опитування';
-                $surveyTypeClass = $isQuiz ? 'quiz-badge' : 'survey-badge';
-
-                $surveyItems .= "
-                <div class='survey-item my-survey-item'>
-                    <div class='survey-header'>
-                        <h3>" . htmlspecialchars($survey['title']) . "</h3>
-                        <div class='survey-badges'>
-                            <span class='type-badge {$surveyTypeClass}'>{$surveyType}</span>
-                            <span class='status-badge {$statusClass}'>{$status}</span>
-                        </div>
-                    </div>
-                    
-                    <p class='survey-description'>" . htmlspecialchars($survey['description']) . "</p>
-                    
-                    <div class='survey-stats'>
-                        <div class='stat-item'>
-                            <span class='stat-number'>{$questionCount}</span>
-                            <span class='stat-label'>Питань</span>
-                        </div>
-                        <div class='stat-item'>
-                            <span class='stat-number'>{$responseCount}</span>
-                            <span class='stat-label'>Відповідей</span>
-                        </div>
-                        <div class='stat-item'>
-                            <span class='stat-number'>" . date('d.m.Y', strtotime($survey['created_at'])) . "</span>
-                            <span class='stat-label'>Створено</span>
-                        </div>
-                    </div>
-                    
-                    <div class='survey-actions'>
-                        <a href='/surveys/edit?id={$survey['id']}' class='btn btn-primary'>
-                            <span class='btn-icon'>✏️</span> Редагувати
-                        </a>
-                        <a href='/surveys/view?id={$survey['id']}' class='btn btn-secondary'>
-                            <span class='btn-icon'>👁️</span> Переглянути
-                        </a>
-                        <a href='/surveys/results?id={$survey['id']}' class='btn btn-secondary'>
-                            <span class='btn-icon'>📊</span> Результати
-                        </a>
-                        " . ($responseCount > 0 ? "
-                        <a href='/surveys/export-results?id={$survey['id']}&format=csv' class='btn btn-outline'>
-                            <span class='btn-icon'>📥</span> Експорт
-                        </a>" : "") . "
-                    </div>
-                </div>";
-            }
-        }
-        return $this->buildPageContent("Мої опитування", "
-        <div class='header-actions'>
-            <h1>Мої опитування</h1>
-            " . $this->renderUserNav() . "
-        </div>
-        
-        <div class='my-surveys-container'>
-            {$surveyItems}
-        </div>
-        
-        <div class='page-actions'>
-            <a href='/surveys/create' class='btn btn-success'>
-                <span class='btn-icon'>➕</span> Створити нове
-            </a>
-            <a href='/surveys' class='btn btn-secondary'>
-                <span class='btn-icon'>📋</span> Всі опитування
-            </a>
-        </div>
-        
-        <style>
-            .no-surveys {
-                text-align: center;
-                padding: 4rem 2rem;
-                background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-                border-radius: 15px;
-                margin: 2rem 0;
-            }
-            .no-surveys-icon {
-                font-size: 4rem;
-                margin-bottom: 1rem;
-                opacity: 0.7;
-            }
-            .no-surveys h3 {
-                color: #495057;
-                margin-bottom: 1rem;
-            }
-            .no-surveys p {
-                color: #6c757d;
-                margin-bottom: 2rem;
-                font-size: 1.1rem;
-            }
-            .my-surveys-container {
-                display: grid;
-                gap: 2rem;
-                margin: 2rem 0;
-            }
-            .my-survey-item {
-                background: white;
-                border: 2px solid #e9ecef;
-                border-radius: 15px;
-                padding: 2rem;
-                transition: all 0.3s ease;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            }
-            .my-survey-item:hover {
-                border-color: #3498db;
-                transform: translateY(-3px);
-                box-shadow: 0 8px 25px rgba(52, 152, 219, 0.15);
-            }
-            .survey-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: flex-start;
-                margin-bottom: 1rem;
-                flex-wrap: wrap;
-                gap: 1rem;
-            }
-            .survey-header h3 {
-                margin: 0;
-                color: #2c3e50;
-                flex: 1;
-                min-width: 200px;
-            }
-            .survey-badges {
-                display: flex;
-                gap: 0.5rem;
-                flex-wrap: wrap;
-            }
-            .type-badge, .status-badge {
-                padding: 0.3rem 0.8rem;
-                border-radius: 20px;
-                font-size: 0.8rem;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-            .quiz-badge {
-                background: linear-gradient(45deg, #f39c12, #e67e22);
-                color: white;
-            }
-            .survey-badge {
-                background: linear-gradient(45deg, #3498db, #2980b9);
-                color: white;
-            }
-            .status-active {
-                background: linear-gradient(45deg, #27ae60, #229954);
-                color: white;
-            }
-            .status-inactive {
-                background: linear-gradient(45deg, #95a5a6, #7f8c8d);
-                color: white;
-            }
-            .survey-description {
-                color: #7f8c8d;
-                margin-bottom: 1.5rem;
-                line-height: 1.6;
-            }
-            .survey-stats {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-                gap: 1rem;
-                margin-bottom: 2rem;
-                padding: 1.5rem;
-                background: #f8f9fa;
-                border-radius: 10px;
-            }
-            .stat-item {
-                text-align: center;
-            }
-            .stat-number {
-                display: block;
-                font-size: 1.8rem;
-                font-weight: bold;
-                color: #3498db;
-                margin-bottom: 0.3rem;
-            }
-            .stat-label {
-                font-size: 0.9rem;
-                color: #6c757d;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-            .survey-actions {
-                display: flex;
-                gap: 0.8rem;
-                flex-wrap: wrap;
-            }
-            .btn-icon {
-                margin-right: 0.5rem;
-            }
-            .btn-outline {
-                background: transparent;
-                border: 2px solid #dee2e6;
-                color: #495057;
-            }
-            .btn-outline:hover {
-                background: #f8f9fa;
-                border-color: #3498db;
-                color: #3498db;
-            }
-            @media (max-width: 768px) {
-                .survey-header {
-                    flex-direction: column;
-                    align-items: stretch;
-                }
-                .survey-badges {
-                    justify-content: flex-start;
-                }
-                .survey-actions {
-                    flex-direction: column;
-                }
-                .survey-actions .btn {
-                    text-align: center;
-                }
-            }
-        </style>
-        
-        <script>
-            // Анімація для статистики
-            document.addEventListener('DOMContentLoaded', function() {
-                const statNumbers = document.querySelectorAll('.stat-number');
-                statNumbers.forEach(el => {
-                    const text = el.textContent;
-                    if (!isNaN(text) && text !== '') {
-                        const target = parseInt(text);
-                        let current = 0;
-                        const increment = target / 20;
-                        const timer = setInterval(() => {
-                            current += increment;
-                            if (current >= target) {
-                                current = target;
-                                clearInterval(timer);
-                            }
-                            el.textContent = Math.floor(current);
-                        }, 50);
-                    }
-                });
-            });
-        </script>
-    ");
-    }
+    // === ПРИВАТНІ МЕТОДИ ===
 
     private function renderSurveysList(array $surveys): string
     {
@@ -571,13 +690,20 @@ class SurveyController extends BaseController
         } else {
             foreach ($surveys as $survey) {
                 $responseCount = SurveyResponse::getCountBySurveyId($survey['id']);
+                $isQuiz = Question::isQuiz($survey['id']);
+                $surveyType = $isQuiz ? 'Квіз' : 'Опитування';
+                $surveyTypeClass = $isQuiz ? 'quiz-badge' : 'survey-badge';
+
                 $surveyItems .= "
                     <div class='survey-item'>
-                        <h3>" . htmlspecialchars($survey['title']) . "</h3>
+                        <div class='survey-header'>
+                            <h3>" . htmlspecialchars($survey['title']) . "</h3>
+                            <span class='type-badge {$surveyTypeClass}'>{$surveyType}</span>
+                        </div>
                         <p>" . htmlspecialchars($survey['description']) . "</p>
                         <p><small>Автор: " . htmlspecialchars($survey['author_name']) . " | Відповідей: {$responseCount}</small></p>
                         <div class='survey-actions'>
-                            <a href='/surveys/view?id={$survey['id']}' class='btn btn-primary'>Пройти опитування</a>
+                            <a href='/surveys/view?id={$survey['id']}' class='btn btn-primary'>Пройти {$surveyType}</a>
                             <a href='/surveys/results?id={$survey['id']}' class='btn btn-secondary'>Результати</a>
                         </div>
                     </div>";
@@ -643,7 +769,6 @@ class SurveyController extends BaseController
             </form>
             
             <script>
-                // AJAX обробка форми для демонстрації
                 document.getElementById('create-survey-form').addEventListener('submit', function(e) {
                     e.preventDefault();
                     
@@ -666,7 +791,7 @@ class SurveyController extends BaseController
                     })
                     .catch(error => {
                         console.error('Error:', error);
-                        this.submit(); // Fallback до звичайної submit
+                        this.submit();
                     });
                 });
             </script>
@@ -843,11 +968,95 @@ class SurveyController extends BaseController
         ");
     }
 
-    private function renderSurveyView(array $survey, array $questions): string
+    private function renderMySurveys(array $surveys): string
     {
-        // Код рендерингу опитування для проходження
-        // ... (аналогічно до оригінального коду)
-        return $this->buildPageContent("Проходження опитування", "<!-- Survey view content -->");
+        $surveyItems = '';
+
+        if (empty($surveys)) {
+            $surveyItems = '
+            <div class="no-surveys">
+                <div class="no-surveys-icon">📋</div>
+                <h3>У вас ще немає створених опитувань</h3>
+                <p>Створіть своє перше опитування та почніть збирати відгуки!</p>
+                <a href="/surveys/create" class="btn btn-success btn-large">Створити перше опитування</a>
+            </div>';
+        } else {
+            foreach ($surveys as $survey) {
+                $status = $survey['is_active'] ? 'Активне' : 'Неактивне';
+                $statusClass = $survey['is_active'] ? 'status-active' : 'status-inactive';
+                $responseCount = SurveyResponse::getCountBySurveyId($survey['id']);
+                $questionCount = count(Question::getBySurveyId($survey['id']));
+
+                // Визначаємо тип опитування
+                $isQuiz = Question::isQuiz($survey['id']);
+                $surveyType = $isQuiz ? 'Квіз' : 'Опитування';
+                $surveyTypeClass = $isQuiz ? 'quiz-badge' : 'survey-badge';
+
+                $surveyItems .= "
+                <div class='survey-item my-survey-item'>
+                    <div class='survey-header'>
+                        <h3>" . htmlspecialchars($survey['title']) . "</h3>
+                        <div class='survey-badges'>
+                            <span class='type-badge {$surveyTypeClass}'>{$surveyType}</span>
+                            <span class='status-badge {$statusClass}'>{$status}</span>
+                        </div>
+                    </div>
+                    
+                    <p class='survey-description'>" . htmlspecialchars($survey['description']) . "</p>
+                    
+                    <div class='survey-stats'>
+                        <div class='stat-item'>
+                            <span class='stat-number'>{$questionCount}</span>
+                            <span class='stat-label'>Питань</span>
+                        </div>
+                        <div class='stat-item'>
+                            <span class='stat-number'>{$responseCount}</span>
+                            <span class='stat-label'>Відповідей</span>
+                        </div>
+                        <div class='stat-item'>
+                            <span class='stat-number'>" . date('d.m.Y', strtotime($survey['created_at'])) . "</span>
+                            <span class='stat-label'>Створено</span>
+                        </div>
+                    </div>
+                    
+                    <div class='survey-actions'>
+                        <a href='/surveys/edit?id={$survey['id']}' class='btn btn-primary'>
+                            <span class='btn-icon'>✏️</span> Редагувати
+                        </a>
+                        <a href='/surveys/view?id={$survey['id']}' class='btn btn-secondary'>
+                            <span class='btn-icon'>👁️</span> Переглянути
+                        </a>
+                        <a href='/surveys/results?id={$survey['id']}' class='btn btn-secondary'>
+                            <span class='btn-icon'>📊</span> Результати
+                        </a>
+                        " . ($responseCount > 0 ? "
+                        <a href='/surveys/export-results?id={$survey['id']}&format=csv' class='btn btn-outline'>
+                            <span class='btn-icon'>📥</span> Експорт
+                        </a>" : "") . "
+                    </div>
+                </div>";
+            }
+        }
+
+        return $this->buildPageContent("Мої опитування", "
+            <div class='header-actions'>
+                <h1>Мої опитування</h1>
+                " . $this->renderUserNav() . "
+            </div>
+            
+            <div class='my-surveys-container'>
+                {$surveyItems}
+            </div>
+            
+            <div class='page-actions'>
+                <a href='/surveys/create' class='btn btn-success'>
+                    <span class='btn-icon'>➕</span> Створити нове
+                </a>
+                <a href='/surveys' class='btn btn-secondary'>
+                    <span class='btn-icon'>📋</span> Всі опитування
+                </a>
+            </div>
+        ");
     }
 
     private function renderUserNav(): string
@@ -889,7 +1098,6 @@ class SurveyController extends BaseController
 
     private function generateExportData(int $surveyId): array
     {
-        // Генерація даних для експорту
         return Database::select(
             "SELECT sr.id, sr.created_at, u.name as user_name, u.email,
                     q.question_text, qa.answer_text, qo.option_text, qa.is_correct, qa.points_earned
