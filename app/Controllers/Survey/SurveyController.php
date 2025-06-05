@@ -2,7 +2,6 @@
 
 /**
  * Простий робочий SurveyController з View компонентами
- * Замініть ваш існуючий файл app/Controllers/Survey/SurveyController.php
  */
 class SurveyController extends BaseController
 {
@@ -239,10 +238,20 @@ class SurveyController extends BaseController
         $this->safeExecute(function() {
             $this->requireAuth();
 
-            $surveyId = $this->getIntParam('survey_id');
+            // ВИПРАВЛЕННЯ: Використовуємо postParam() замість getIntParam()
+            $surveyId = (int)$this->postParam('survey_id', 0);
+
+            // Додаткове логування для діагностики
+            error_log("DEBUG: Survey ID from POST: " . $surveyId);
+            error_log("DEBUG: All POST data: " . json_encode($_POST));
+
             $survey = $this->validator->validateAndGetSurvey($surveyId);
 
             if (!$survey || !Survey::isAuthor($surveyId, Session::getUserId())) {
+                error_log("DEBUG: Survey found: " . ($survey ? 'yes' : 'no'));
+                error_log("DEBUG: User ID: " . Session::getUserId());
+                error_log("DEBUG: Survey author ID: " . ($survey['user_id'] ?? 'N/A'));
+
                 throw new ForbiddenException('У вас немає прав для редагування цього опитування');
             }
 
@@ -250,7 +259,7 @@ class SurveyController extends BaseController
                 'text' => $this->postParam('question_text', ''),
                 'type' => $this->postParam('question_type', ''),
                 'required' => (bool)$this->postParam('is_required'),
-                'points' => $this->getIntParam('points', 1),
+                'points' => $this->getIntParam('points', 1), // Це OK, бо points може бути в GET або POST
                 'correct_answer' => $this->postParam('correct_answer', '') ?: null,
                 'options' => $this->postParam('options', []),
                 'correct_options' => $this->postParam('correct_options', [])

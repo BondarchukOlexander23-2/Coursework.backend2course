@@ -1,7 +1,6 @@
 <?php
 /**
  * Сервіс для роботи з питаннями
- * Відповідає принципу Single Responsibility - логіка обробки питань
  */
 class QuestionService
 {
@@ -30,32 +29,63 @@ class QuestionService
         array $options,
         array $correctOptions
     ): int {
-        $orderNumber = Question::getNextOrderNumber($surveyId);
-        $questionId = Question::create(
-            $surveyId,
-            $questionText,
-            $questionType,
-            $isRequired,
-            $orderNumber,
-            $correctAnswer,
-            $points
-        );
+        try {
+            error_log("DEBUG QuestionService: Creating question - surveyId: $surveyId, type: $questionType");
 
-        // Додаємо варіанти відповідей з позначенням правильних
-        if (in_array($questionType, [Question::TYPE_RADIO, Question::TYPE_CHECKBOX])) {
-            $optionsData = [];
-            foreach ($options as $index => $optionText) {
-                if (!empty(trim($optionText))) {
-                    $optionsData[] = [
-                        'text' => $optionText,
-                        'is_correct' => in_array($index, $correctOptions)
-                    ];
+            $orderNumber = Question::getNextOrderNumber($surveyId);
+            error_log("DEBUG QuestionService: Next order number: $orderNumber");
+
+            $questionId = Question::create(
+                $surveyId,
+                $questionText,
+                $questionType,
+                $isRequired,
+                $orderNumber,
+                $correctAnswer,
+                $points
+            );
+            error_log("DEBUG QuestionService: Question created with ID: $questionId");
+
+            // Додаємо варіанти відповідей тільки для типів radio та checkbox
+            if (in_array($questionType, [Question::TYPE_RADIO, Question::TYPE_CHECKBOX])) {
+                error_log("DEBUG QuestionService: Processing options for question type: $questionType");
+                error_log("DEBUG QuestionService: Options array: " . json_encode($options));
+                error_log("DEBUG QuestionService: Correct options array: " . json_encode($correctOptions));
+
+                if (!empty($options) && is_array($options)) {
+                    $optionsData = [];
+                    foreach ($options as $index => $optionText) {
+                        if (!empty(trim($optionText))) {
+                            $isCorrect = in_array($index, $correctOptions) || in_array((string)$index, $correctOptions);
+                            $optionsData[] = [
+                                'text' => trim($optionText),
+                                'is_correct' => $isCorrect
+                            ];
+                            error_log("DEBUG QuestionService: Option $index: '$optionText', correct: " . ($isCorrect ? 'yes' : 'no'));
+                        }
+                    }
+
+                    if (!empty($optionsData)) {
+                        error_log("DEBUG QuestionService: Creating " . count($optionsData) . " options");
+                        QuestionOption::createMultiple($questionId, $optionsData);
+                        error_log("DEBUG QuestionService: Options created successfully");
+                    } else {
+                        error_log("DEBUG QuestionService: No valid options to create");
+                    }
+                } else {
+                    error_log("DEBUG QuestionService: Options array is empty or not array");
                 }
+            } else {
+                error_log("DEBUG QuestionService: Skipping options for text question type: $questionType");
             }
-            QuestionOption::createMultiple($questionId, $optionsData);
-        }
 
-        return $questionId;
+            return $questionId;
+
+        } catch (Exception $e) {
+            error_log("DEBUG QuestionService: Exception in createQuestionWithOptions: " . $e->getMessage());
+            error_log("DEBUG QuestionService: Exception trace: " . $e->getTraceAsString());
+            throw $e;
+        }
     }
 
     /**
@@ -154,7 +184,7 @@ class QuestionService
             $question['points']
         );
 
-        // Копіюємо варіанти відповідей
+        // Копіюємо варіанти відповідей, якщо є
         if ($question['has_options']) {
             $options = QuestionOption::getByQuestionId($questionId);
             QuestionOption::createMultiple($newQuestionId, $options);
