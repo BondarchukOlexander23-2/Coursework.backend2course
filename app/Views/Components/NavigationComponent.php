@@ -7,9 +7,9 @@ class NavigationComponent extends BaseView
         if (Session::isLoggedIn()) {
             $userName = Session::getUserName();
 
-            // Кнопка адміна тільки для адмінів
+            // ВИПРАВЛЕННЯ: Правильна перевірка адміністратора
             $adminButton = "";
-            if (Session::isAdmin()) {
+            if ($this->isAdmin()) {
                 $adminButton = "<a href='/admin' class='btn btn-sm' style='background: #f39c12; color: white;'>⚙️ Адмін</a>";
             }
 
@@ -26,6 +26,25 @@ class NavigationComponent extends BaseView
                     <a href='/login' class='btn btn-sm'>Увійти</a>
                     <a href='/register' class='btn btn-sm'>Реєстрація</a>
                 </div>";
+        }
+    }
+
+    /**
+     * Перевірити чи користувач є адміністратором
+     */
+    private function isAdmin(): bool
+    {
+        $userId = Session::getUserId();
+        if (!$userId) {
+            return false;
+        }
+
+        try {
+            $user = User::findById($userId);
+            return $user && $user['role'] === 'admin';
+        } catch (Exception $e) {
+            error_log("Error checking admin role in NavigationComponent: " . $e->getMessage());
+            return false;
         }
     }
 }
