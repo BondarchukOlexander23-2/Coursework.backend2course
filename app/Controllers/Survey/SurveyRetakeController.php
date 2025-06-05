@@ -269,7 +269,7 @@ class SurveyRetakeController extends BaseController
     }
 
     /**
-     * Рендер HTML сторінки
+     * Рендер HTML сторінки з виправленими URL
      */
     private function renderManagementHTML(array $survey, array $users, array $stats): string
     {
@@ -376,7 +376,7 @@ class SurveyRetakeController extends BaseController
                 
                 function grantRetake(userId) {
                     if (confirm('Надати дозвіл на повторне проходження?')) {
-                        fetch('/retake/grant', {
+                        fetch('/surveys/retake/grant', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                             body: 'survey_id={$survey['id']}&user_id=' + userId
@@ -385,13 +385,17 @@ class SurveyRetakeController extends BaseController
                         .then(data => {
                             alert(data.message || 'Готово');
                             location.reload();
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('Виникла помилка');
                         });
                     }
                 }
                 
                 function revokeRetake(userId) {
                     if (confirm('Скасувати дозвіл?')) {
-                        fetch('/retake/revoke', {
+                        fetch('/surveys/retake/revoke', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                             body: 'survey_id={$survey['id']}&user_id=' + userId
@@ -400,6 +404,10 @@ class SurveyRetakeController extends BaseController
                         .then(data => {
                             alert(data.message || 'Готово');
                             location.reload();
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('Виникла помилка');
                         });
                     }
                 }
@@ -415,7 +423,7 @@ class SurveyRetakeController extends BaseController
                     }
                     
                     if (confirm('Надати дозвіл ' + selectedUsers.length + ' користувачам?')) {
-                        fetch('/retake/grant-bulk', {
+                        fetch('/surveys/retake/grant-bulk', {
                             method: 'POST',
                             body: formData
                         })
@@ -423,6 +431,10 @@ class SurveyRetakeController extends BaseController
                         .then(data => {
                             alert(data.message || 'Готово');
                             location.reload();
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('Виникла помилка');
                         });
                     }
                 }

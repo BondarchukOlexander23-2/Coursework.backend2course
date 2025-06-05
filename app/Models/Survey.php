@@ -401,7 +401,36 @@ class Survey
                   LIMIT 1";
         return Database::execute($query, [$surveyId, $userId]) > 0;
     }
+    /**
+     * Перевірити чи дозволено повторне проходження з детальною інформацією
+     */
+    public static function getRetakeInfo(int $surveyId, int $userId): array
+    {
+        $retakeInfo = Database::selectOne(
+            "SELECT id, allowed_at, allowed_by, used_at 
+         FROM survey_retakes 
+         WHERE survey_id = ? AND user_id = ? AND used_at IS NULL 
+         ORDER BY allowed_at DESC 
+         LIMIT 1",
+            [$surveyId, $userId]
+        );
 
+        if ($retakeInfo) {
+            $allowedBy = Database::selectOne(
+                "SELECT name FROM users WHERE id = ?",
+                [$retakeInfo['allowed_by']]
+            );
+
+            return [
+                'allowed' => true,
+                'allowed_at' => $retakeInfo['allowed_at'],
+                'allowed_by' => $allowedBy['name'] ?? 'Невідомо',
+                'retake_id' => $retakeInfo['id']
+            ];
+        }
+
+        return ['allowed' => false];
+    }
     /**
      * Отримати список користувачів, які проходили опитування
      */

@@ -131,18 +131,53 @@ class SurveyController extends BaseController
                 throw new NotFoundException('Опитування не знайдено');
             }
 
-            // Перевіряємо чи користувач вже відповідав
-            if (Session::isLoggedIn() && SurveyResponse::hasUserResponded($surveyId, Session::getUserId())) {
+            if (!$survey['is_active']) {
                 $this->redirectWithMessage(
-                    "/surveys/results?id={$surveyId}",
-                    'info',
-                    'Ви вже проходили це опитування'
+                    "/surveys",
+                    'error',
+                    'Це опитування неактивне'
                 );
                 return;
             }
 
             $questions = Question::getBySurveyId($surveyId);
+            if (empty($questions)) {
+                $this->redirectWithMessage(
+                    "/surveys",
+                    'error',
+                    'Опитування не містить питань'
+                );
+                return;
+            }
+
             $this->questionService->loadQuestionsWithOptions($questions);
+
+            // Перевіряємо чи користувач вже відповідав (з урахуванням дозволів)
+            if (Session::isLoggedIn()) {
+                $userId = Session::getUserId();
+
+                // Перевіряємо чи є дозвіл на повторне проходження
+                $hasRetakePermission = Database::selectOne(
+                    "SELECT COUNT(*) as count FROM survey_retakes 
+                 WHERE survey_id = ? AND user_id = ? AND used_at IS NULL",
+                    [$surveyId, $userId]
+                );
+
+                // Якщо немає дозволу на повторне проходження, перевіряємо чи вже проходив
+                if (($hasRetakePermission['count'] ?? 0) === 0) {
+                    if (SurveyResponse::hasUserResponded($surveyId, $userId)) {
+                        $this->redirectWithMessage(
+                            "/surveys/results?id={$surveyId}",
+                            'info',
+                            'Ви вже проходили це опитування'
+                        );
+                        return;
+                    }
+                } else {
+                    // Якщо є дозвіл, показуємо повідомлення
+                    Session::setFlashMessage('info', 'Ви можете пройти це опитування ще раз');
+                }
+            }
 
             if (!class_exists('SurveyViewView')) {
                 require_once __DIR__ . '/../../Views/Survey/SurveyViewView.php';

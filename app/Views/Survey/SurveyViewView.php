@@ -14,11 +14,17 @@ class SurveyViewView extends BaseView
         $questions = $this->get('questions', []);
         $userHasResponded = $this->get('userHasResponded', false);
 
-        if ($userHasResponded) {
+        // Перевіряємо дозвіл на повторне проходження
+        $retakeInfo = null;
+        if (Session::isLoggedIn()) {
+            $retakeInfo = Survey::getRetakeInfo($survey['id'], Session::getUserId());
+        }
+
+        if ($userHasResponded && (!$retakeInfo || !$retakeInfo['allowed'])) {
             return $this->renderAlreadyResponded($survey);
         }
 
-        return $this->renderSurveyForm($survey, $questions);
+        return $this->renderSurveyForm($survey, $questions, $retakeInfo);
     }
 
     private function renderAlreadyResponded(array $survey): string
@@ -43,11 +49,25 @@ class SurveyViewView extends BaseView
             " . $this->renderAlreadyRespondedStyles();
     }
 
-    private function renderSurveyForm(array $survey, array $questions): string
+    private function renderSurveyForm(array $survey, array $questions, ?array $retakeInfo = null): string
     {
         $isQuiz = $this->determineIfQuiz($questions);
         $surveyType = $isQuiz ? 'квіз' : 'опитування';
         $totalQuestions = count($questions);
+
+        // Повідомлення про повторне проходження
+        $retakeNotice = '';
+        if ($retakeInfo && $retakeInfo['allowed']) {
+            $retakeNotice = "
+            <div class='retake-notice'>
+                <div class='notice-icon'>🔄</div>
+                <div class='notice-content'>
+                    <h3>Дозвіл на повторне проходження</h3>
+                    <p>Вам надано дозвіл пройти це опитування ще раз.</p>
+                    <p><small>Дозвіл надано: {$retakeInfo['allowed_by']} " . date('d.m.Y H:i', strtotime($retakeInfo['allowed_at'])) . "</small></p>
+                </div>
+            </div>";
+        }
 
         $questionsHtml = '';
         $questionNumber = 1;
@@ -58,48 +78,96 @@ class SurveyViewView extends BaseView
         }
 
         return "
-            <div class='header-actions'>
-                <h1>" . $this->escape($survey['title']) . "</h1>
-                " . $this->component('Navigation') . "
-            </div>
-            
-            <div class='survey-info'>
-                <div class='survey-meta'>
-                    <div class='survey-description'>
-                        <p>" . $this->escape($survey['description']) . "</p>
-                    </div>
-                    <div class='survey-stats'>
-                        <span class='survey-type " . ($isQuiz ? 'quiz' : 'survey') . "'>" . ucfirst($surveyType) . "</span>
-                        <span class='question-count'>{$totalQuestions} " . $this->getQuestionWord($totalQuestions) . "</span>
-                        <span class='author'>Автор: " . $this->escape($survey['author_name']) . "</span>
-                    </div>
+        <div class='header-actions'>
+            <h1>" . $this->escape($survey['title']) . "</h1>
+            " . $this->component('Navigation') . "
+        </div>
+        
+        {$retakeNotice}
+        
+        <div class='survey-info'>
+            <div class='survey-meta'>
+                <div class='survey-description'>
+                    <p>" . $this->escape($survey['description']) . "</p>
+                </div>
+                <div class='survey-stats'>
+                    <span class='survey-type " . ($isQuiz ? 'quiz' : 'survey') . "'>" . ucfirst($surveyType) . "</span>
+                    <span class='question-count'>{$totalQuestions} " . $this->getQuestionWord($totalQuestions) . "</span>
+                    <span class='author'>Автор: " . $this->escape($survey['author_name']) . "</span>
                 </div>
             </div>
+        </div>
+        
+        <form method='POST' action='/surveys/submit' id='survey-form' class='survey-form'>
+            <input type='hidden' name='survey_id' value='{$survey['id']}'>
             
-            <form method='POST' action='/surveys/submit' id='survey-form' class='survey-form'>
-                <input type='hidden' name='survey_id' value='{$survey['id']}'>
-                
-                <div class='progress-bar-container'>
-                    <div class='progress-bar'>
-                        <div class='progress' id='survey-progress'></div>
-                    </div>
-                    <span class='progress-text'>Питання <span id='current-question'>1</span> з {$totalQuestions}</span>
+            <div class='progress-bar-container'>
+                <div class='progress-bar'>
+                    <div class='progress' id='survey-progress'></div>
                 </div>
-                
-                <div class='questions-container'>
-                    {$questionsHtml}
-                </div>
-                
-                <div class='form-navigation'>
-                    <button type='button' id='prev-btn' class='btn btn-secondary' disabled>← Попереднє</button>
-                    <button type='button' id='next-btn' class='btn btn-primary'>Наступне →</button>
-                    <button type='submit' id='submit-btn' class='btn btn-success' style='display: none;'>
-                        " . ($isQuiz ? 'Завершити квіз' : 'Відправити відповіді') . "
-                    </button>
-                </div>
-            </form>
+                <span class='progress-text'>Питання <span id='current-question'>1</span> з {$totalQuestions}</span>
+            </div>
             
-            " . $this->renderSurveyScript($totalQuestions);
+            <div class='questions-container'>
+                {$questionsHtml}
+            </div>
+            
+            <div class='form-navigation'>
+                <button type='button' id='prev-btn' class='btn btn-secondary' disabled>← Попереднє</button>
+                <button type='button' id='next-btn' class='btn btn-primary'>Наступне →</button>
+                <button type='submit' id='submit-btn' class='btn btn-success' style='display: none;'>
+                    " . ($isQuiz ? 'Завершити квіз' : 'Відправити відповіді') . "
+                </button>
+            </div>
+        </form>
+        
+        <style>
+            .retake-notice {
+                background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+                border: 2px solid #2196f3;
+                border-radius: 12px;
+                padding: 1.5rem;
+                margin: 1.5rem 0;
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+                animation: slideIn 0.5s ease-out;
+            }
+            
+            .notice-icon {
+                font-size: 2.5rem;
+                color: #1976d2;
+            }
+            
+            .notice-content h3 {
+                margin: 0 0 0.5rem 0;
+                color: #1565c0;
+                font-size: 1.2rem;
+            }
+            
+            .notice-content p {
+                margin: 0.3rem 0;
+                color: #1976d2;
+            }
+            
+            .notice-content small {
+                color: #424242;
+                font-style: italic;
+            }
+            
+            @keyframes slideIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(-20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+        </style>
+        
+        " . $this->renderSurveyScript($totalQuestions);
     }
 
     private function renderQuestion(array $question, int $questionNumber): string

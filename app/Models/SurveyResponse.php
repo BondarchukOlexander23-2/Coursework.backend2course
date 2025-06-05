@@ -38,9 +38,24 @@ class SurveyResponse
         int $totalScore = 0,
         int $maxScore = 0
     ): int {
-        // Якщо це повторна спроба, відмічаємо дозвіл як використаний
-        if ($userId && Survey::isRetakeAllowed($surveyId, $userId)) {
-            Survey::useRetakePermission($surveyId, $userId);
+        // Якщо це повторна спроба з дозволом, відмічаємо дозвіл як використаний
+        if ($userId) {
+            $hasRetakePermission = Database::selectOne(
+                "SELECT id FROM survey_retakes 
+             WHERE survey_id = ? AND user_id = ? AND used_at IS NULL 
+             LIMIT 1",
+                [$surveyId, $userId]
+            );
+
+            if ($hasRetakePermission) {
+                // Відмічаємо дозвіл як використаний
+                Database::execute(
+                    "UPDATE survey_retakes SET used_at = NOW() WHERE id = ?",
+                    [$hasRetakePermission['id']]
+                );
+
+                error_log("Retake permission used: Survey {$surveyId}, User {$userId}");
+            }
         }
 
         $response = new self($surveyId, $userId, $ipAddress, $totalScore, $maxScore);
@@ -70,6 +85,19 @@ class SurveyResponse
      */
     public static function hasUserResponded(int $surveyId, int $userId): bool
     {
+        // Спочатку перевіряємо чи є дозвіл на повторне проходження
+        $hasRetakePermission = Database::selectOne(
+            "SELECT COUNT(*) as count FROM survey_retakes 
+         WHERE survey_id = ? AND user_id = ? AND used_at IS NULL",
+            [$surveyId, $userId]
+        );
+
+        // Якщо є дозвіл на повторне проходження, дозволяємо пройти
+        if (($hasRetakePermission['count'] ?? 0) > 0) {
+            return false; // Дозволяємо пройти опитування
+        }
+
+        // Інакше перевіряємо звичайним способом
         $query = "SELECT COUNT(*) as count FROM survey_responses WHERE survey_id = ? AND user_id = ?";
         $result = Database::selectOne($query, [$surveyId, $userId]);
         return ($result['count'] ?? 0) > 0;
