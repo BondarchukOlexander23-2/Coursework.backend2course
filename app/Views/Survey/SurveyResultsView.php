@@ -2,6 +2,10 @@
 
 require_once __DIR__ . '/../BaseView.php';
 
+/**
+ * ВИПРАВЛЕНИЙ SurveyResultsView
+ * Замініть весь вміст файлу app/Views/Survey/SurveyResultsView.php
+ */
 class SurveyResultsView extends BaseView
 {
     protected function content(): string
@@ -30,39 +34,35 @@ class SurveyResultsView extends BaseView
             $levelClass = $this->getResultLevelClass($percentage);
 
             $userResultHtml = "
-                <div class='container'>
-                    <div class='user-result highlight'>
-                        <h3>Ваш результат</h3>
-                        <div class='score-display'>
-                            <span class='score'>{$userResult['total_score']}/{$userResult['max_score']}</span>
-                            <span class='percentage'>{$percentage}%</span>
-                            <span class='level {$levelClass}'>{$level}</span>
-                        </div>
+                <div class='user-result highlight'>
+                    <h3>Ваш результат</h3>
+                    <div class='score-display'>
+                        <span class='score'>{$userResult['total_score']}/{$userResult['max_score']}</span>
+                        <span class='percentage'>{$percentage}%</span>
+                        <span class='level {$levelClass}'>{$level}</span>
                     </div>
                 </div>";
         }
 
         $statsHtml = "
-            <div>
-                <div class='quiz-stats'>
-                    <h3>Загальна статистика</h3>
-                    <div class='stats-grid'>
-                        <div class='stat-item'>
-                            <span class='stat-number'>{$stats['total_attempts']}</span>
-                            <span class='stat-label'>Спроб</span>
-                        </div>
-                        <div class='stat-item'>
-                            <span class='stat-number'>{$stats['avg_percentage']}%</span>
-                            <span class='stat-label'>Середній результат</span>
-                        </div>
-                        <div class='stat-item'>
-                            <span class='stat-number'>{$stats['best_score']}</span>
-                            <span class='stat-label'>Найкращий результат</span>
-                        </div>
-                        <div class='stat-item'>
-                            <span class='stat-number'>{$stats['perfect_scores']}</span>
-                            <span class='stat-label'>Ідеальних результатів</span>
-                        </div>
+            <div class='quiz-stats'>
+                <h3>Загальна статистика</h3>
+                <div class='stats-grid'>
+                    <div class='stat-item'>
+                        <span class='stat-number'>{$stats['total_attempts']}</span>
+                        <span class='stat-label'>Спроб</span>
+                    </div>
+                    <div class='stat-item'>
+                        <span class='stat-number'>{$stats['avg_percentage']}%</span>
+                        <span class='stat-label'>Середній результат</span>
+                    </div>
+                    <div class='stat-item'>
+                        <span class='stat-number'>{$stats['best_score']}</span>
+                        <span class='stat-label'>Найкращий результат</span>
+                    </div>
+                    <div class='stat-item'>
+                        <span class='stat-number'>{$stats['perfect_scores']}</span>
+                        <span class='stat-label'>Ідеальних результатів</span>
                     </div>
                 </div>
             </div>";
@@ -83,7 +83,6 @@ class SurveyResultsView extends BaseView
         }
 
         return "
-        <div class='container'>
             <div class='header-actions'>
                 <div>
                     <h1>Квіз: " . $this->escape($survey['title']) . "</h1>
@@ -101,8 +100,7 @@ class SurveyResultsView extends BaseView
                 {$editLink}
             </div>
             
-            " . $this->renderQuizAnimationScript() . "
-            </div>";
+            " . $this->renderQuizAnimationScript();
     }
 
     private function renderSurveyResults(): string
@@ -132,68 +130,63 @@ class SurveyResultsView extends BaseView
         }
 
         return "
-            <div class='container'>
-                <div class='header-actions'>
-                    <div>
-                        <h1>Результати: " . $this->escape($survey['title']) . "</h1>
-                        <p><strong>Всього відповідей: {$totalResponses}</strong></p>
-                    </div>
-                    " . $this->component('Navigation') . "
+            <div class='header-actions'>
+                <div>
+                    <h1>Результати: " . $this->escape($survey['title']) . "</h1>
+                    <p><strong>Всього відповідей: {$totalResponses}</strong></p>
                 </div>
-                
-                <div class='survey-summary'>
-                    <div class='summary-stats'>
-                        <div class='summary-item'>
-                            <span class='summary-number'>{$totalResponses}</span>
-                            <span class='summary-label'>Відповідей</span>
-                        </div>
-                        <div class='summary-item'>
-                            <span class='summary-number'>" . count($questions) . "</span>
-                            <span class='summary-label'>Питань</span>
-                        </div>
-                        <div class='summary-item'>
-                            <span class='summary-number'>" . date('d.m.Y', strtotime($survey['created_at'])) . "</span>
-                            <span class='summary-label'>Створено</span>
-                        </div>
+                " . $this->component('Navigation') . "
+            </div>
+            
+            <div class='survey-summary'>
+                <div class='summary-stats'>
+                    <div class='summary-item'>
+                        <span class='summary-number'>{$totalResponses}</span>
+                        <span class='summary-label'>Відповідей</span>
+                    </div>
+                    <div class='summary-item'>
+                        <span class='summary-number'>" . count($questions) . "</span>
+                        <span class='summary-label'>Питань</span>
+                    </div>
+                    <div class='summary-item'>
+                        <span class='summary-number'>" . date('d.m.Y', strtotime($survey['created_at'])) . "</span>
+                        <span class='summary-label'>Створено</span>
                     </div>
                 </div>
-                
-                <div class='results'>
-                    {$resultsHtml}
-                </div>
-                
-                <div class='form-actions'>
-                    <a href='/surveys' class='btn btn-primary'>До списку опитувань</a>
-                    <a href='/surveys/view?id={$survey['id']}' class='btn btn-secondary'>Пройти опитування</a>
-                    {$editLinks}
-                </div>
-                
-                " . $this->renderSurveyAnimationScript() . "
-                </div>";
-
+            </div>
+            
+            <div class='results'>
+                {$resultsHtml}
+            </div>
+            
+            <div class='form-actions'>
+                <a href='/surveys' class='btn btn-primary'>До списку опитувань</a>
+                <a href='/surveys/view?id={$survey['id']}' class='btn btn-secondary'>Пройти опитування</a>
+                {$editLinks}
+            </div>
+            
+            " . $this->renderSurveyAnimationScript();
     }
 
     private function renderNoResults(int $surveyId): string
     {
         return "
-            <div class='container'>
-                <div class='no-results'>
-                    <h3>Ще немає відповідей</h3>
-                    <p>Це опитування ще не має відповідей. Поділіться посиланням щоб отримати перші результати!</p>
-                    <div class='share-buttons'>
-                        <button onclick='copyToClipboard()' class='btn btn-primary'>Копіювати посилання</button>
-                        <a href='/surveys/view?id={$surveyId}' class='btn btn-secondary'>Пройти самому</a>
-                    </div>
-                    
-                    <script>
-                        function copyToClipboard() {
-                            const url = window.location.origin + '/surveys/view?id={$surveyId}';
-                            navigator.clipboard.writeText(url).then(function() {
-                                alert('Посилання скопійовано!');
-                            });
-                        }
-                    </script>
+            <div class='no-results'>
+                <h3>Ще немає відповідей</h3>
+                <p>Це опитування ще не має відповідей. Поділіться посиланням щоб отримати перші результати!</p>
+                <div class='share-buttons'>
+                    <button onclick='copyToClipboard()' class='btn btn-primary'>Копіювати посилання</button>
+                    <a href='/surveys/view?id={$surveyId}' class='btn btn-secondary'>Пройти самому</a>
                 </div>
+                
+                <script>
+                    function copyToClipboard() {
+                        const url = window.location.origin + '/surveys/view?id={$surveyId}';
+                        navigator.clipboard.writeText(url).then(function() {
+                            alert('Посилання скопійовано!');
+                        });
+                    }
+                </script>
             </div>";
     }
 
@@ -288,7 +281,6 @@ class SurveyResultsView extends BaseView
                 });
             </script>";
     }
-
 
     private function renderSurveyAnimationScript(): string
     {

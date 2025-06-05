@@ -1269,6 +1269,156 @@ h3 {
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.retake-management-section {
+    background: linear-gradient(135deg, #e8f4fd 0%, #d6eaf8 100%);
+    border: 2px solid #3498db;
+    border-radius: 12px;
+    padding: 2rem;
+    margin: 2rem 0;
+    text-align: center;
+}
+
+.retake-management-section h3 {
+    color: #2980b9;
+    margin-bottom: 1rem;
+    font-size: 1.3rem;
+}
+
+.retake-management-section p {
+    color: #34495e;
+    margin-bottom: 1rem;
+    line-height: 1.6;
+}
+
+.btn-info {
+    background: linear-gradient(45deg, #3498db, #2980b9);
+    color: white;
+    text-decoration: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-info:hover {
+    background: linear-gradient(45deg, #2980b9, #1f618d);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+    color: white;
+}
+
+.btn-icon {
+    font-size: 1.1rem;
+}
+
+/* Адаптивність */
+@media (max-width: 768px) {
+    .retake-management-section {
+        padding: 1.5rem;
+        margin: 1rem 0;
+    }
+
+    .retake-management-section h3 {
+        font-size: 1.1rem;
+    }
+
+    .btn-info {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+.retake-info-section {
+    background: linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%);
+    border: 2px solid #28a745;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 2rem 0;
+    text-align: center;
+}
+
+.retake-info-section h3 {
+    color: #155724;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+}
+
+.retake-stats-mini {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.mini-stat {
+    background: rgba(255, 255, 255, 0.8);
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid rgba(40, 167, 69, 0.2);
+}
+
+.mini-stat-number {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #28a745;
+    margin-bottom: 0.3rem;
+}
+
+.mini-stat-label {
+    font-size: 0.8rem;
+    color: #495057;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.retake-actions {
+    margin-top: 1rem;
+}
+
+.btn-info.btn-sm {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+    background: linear-gradient(45deg, #17a2b8, #138496);
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-info.btn-sm:hover {
+    background: linear-gradient(45deg, #138496, #117a8b);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(23, 162, 184, 0.3);
+    color: white;
+}
+
+@media (max-width: 768px) {
+    .retake-stats-mini {
+        grid-template-columns: 1fr;
+        gap: 0.8rem;
+    }
+
+    .mini-stat {
+        padding: 0.8rem;
+    }
+
+    .mini-stat-number {
+        font-size: 1.3rem;
+    }
+
+    .btn-info.btn-sm {
+        width: 100%;
+        justify-content: center;
+    }
+}
 .progress {
     height: 100%;
     background: linear-gradient(90deg, #3498db, #2ecc71);

@@ -362,4 +362,81 @@ class Survey
             'is_active' => $this->isActive
         ];
     }
+    /**
+     * Дозволити повторне проходження опитування користувачу
+     */
+    public static function allowRetake(int $surveyId, int $userId): bool
+    {
+        $query = "INSERT INTO survey_retakes (survey_id, user_id, allowed_by, allowed_at) VALUES (?, ?, ?, NOW())";
+        $allowedBy = Session::getUserId();
+
+        try {
+            Database::insert($query, [$surveyId, $userId, $allowedBy]);
+            return true;
+        } catch (Exception $e) {
+            error_log("Error allowing retake: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Перевірити чи дозволено повторне проходження
+     */
+    public static function isRetakeAllowed(int $surveyId, int $userId): bool
+    {
+        $query = "SELECT COUNT(*) as count FROM survey_retakes 
+                  WHERE survey_id = ? AND user_id = ? AND used_at IS NULL";
+        $result = Database::selectOne($query, [$surveyId, $userId]);
+        return ($result['count'] ?? 0) > 0;
+    }
+
+    /**
+     * Використати дозвіл на повторне проходження
+     */
+    public static function useRetakePermission(int $surveyId, int $userId): bool
+    {
+        $query = "UPDATE survey_retakes 
+                  SET used_at = NOW() 
+                  WHERE survey_id = ? AND user_id = ? AND used_at IS NULL 
+                  LIMIT 1";
+        return Database::execute($query, [$surveyId, $userId]) > 0;
+    }
+
+    /**
+     * Отримати список користувачів, які проходили опитування
+     */
+    public static function getUsersWhoCompleted(int $surveyId): array
+    {
+        $query = "SELECT DISTINCT sr.user_id, u.name, u.email, 
+                         COUNT(sr.id) as attempts_count,
+                         MAX(sr.created_at) as last_attempt,
+                         MAX(sr.total_score) as best_score,
+                         MAX(sr.max_score) as max_possible_score,
+                         CASE WHEN rt.id IS NOT NULL THEN 1 ELSE 0 END as has_retake_permission
+                  FROM survey_responses sr
+                  JOIN users u ON sr.user_id = u.id
+                  LEFT JOIN survey_retakes rt ON sr.survey_id = rt.survey_id 
+                            AND sr.user_id = rt.user_id AND rt.used_at IS NULL
+                  WHERE sr.survey_id = ? AND sr.user_id IS NOT NULL
+                  GROUP BY sr.user_id, u.name, u.email, rt.id
+                  ORDER BY last_attempt DESC";
+
+        return Database::select($query, [$surveyId]);
+    }
+
+    /**
+     * Отримати історію повторних спроб
+     */
+    public static function getRetakeHistory(int $surveyId): array
+    {
+        $query = "SELECT rt.*, u.name as user_name, u.email as user_email,
+                         ab.name as allowed_by_name
+                  FROM survey_retakes rt
+                  JOIN users u ON rt.user_id = u.id
+                  JOIN users ab ON rt.allowed_by = ab.id
+                  WHERE rt.survey_id = ?
+                  ORDER BY rt.allowed_at DESC";
+
+        return Database::select($query, [$surveyId]);
+    }
 }

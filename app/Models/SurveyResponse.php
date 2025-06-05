@@ -38,6 +38,11 @@ class SurveyResponse
         int $totalScore = 0,
         int $maxScore = 0
     ): int {
+        // Якщо це повторна спроба, відмічаємо дозвіл як використаний
+        if ($userId && Survey::isRetakeAllowed($surveyId, $userId)) {
+            Survey::useRetakePermission($surveyId, $userId);
+        }
+
         $response = new self($surveyId, $userId, $ipAddress, $totalScore, $maxScore);
 
         $query = "INSERT INTO survey_responses (survey_id, user_id, ip_address, total_score, max_score) VALUES (?, ?, ?, ?, ?)";
@@ -60,6 +65,32 @@ class SurveyResponse
         return Database::execute($query, [$totalScore, $maxScore, $responseId]) > 0;
     }
 
+    /**
+     * Перевірити чи користувач вже відповідав на опитування
+     */
+    public static function hasUserResponded(int $surveyId, int $userId): bool
+    {
+        $query = "SELECT COUNT(*) as count FROM survey_responses WHERE survey_id = ? AND user_id = ?";
+        $result = Database::selectOne($query, [$surveyId, $userId]);
+        return ($result['count'] ?? 0) > 0;
+    }
+
+    /**
+     * Отримати всі спроби користувача по опитуванню
+     */
+    public static function getUserAttempts(int $surveyId, int $userId): array
+    {
+        $query = "SELECT sr.*, 
+                         CASE WHEN sr.max_score > 0 
+                              THEN ROUND((sr.total_score / sr.max_score) * 100, 1) 
+                              ELSE 0 END as percentage,
+                         ROW_NUMBER() OVER (ORDER BY sr.created_at) as attempt_number
+                  FROM survey_responses sr 
+                  WHERE sr.survey_id = ? AND sr.user_id = ?
+                  ORDER BY sr.created_at ASC";
+
+        return Database::select($query, [$surveyId, $userId]);
+    }
     /**
      * Знайти відповідь за ID
      */
@@ -142,12 +173,7 @@ class SurveyResponse
     /**
      * Перевірити чи користувач вже відповідав на опитування
      */
-    public static function hasUserResponded(int $surveyId, int $userId): bool
-    {
-        $query = "SELECT COUNT(*) as count FROM survey_responses WHERE survey_id = ? AND user_id = ?";
-        $result = Database::selectOne($query, [$surveyId, $userId]);
-        return ($result['count'] ?? 0) > 0;
-    }
+
 
     /**
      * Видалити відповідь

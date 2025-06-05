@@ -11,6 +11,7 @@ require_once '../app/Models/SurveyResponse.php';
 require_once '../app/Models/QuestionAnswer.php';
 require_once '../app/Helpers/Session.php';
 
+
 // Завантажуємо нові класи для обробки відповідей
 require_once '../app/Services/ResponseManager.php';
 require_once '../app/Exceptions/CustomExceptions.php';
@@ -40,6 +41,10 @@ require_once '../app/Controllers/AdminController.php';
 require_once '../app/Controllers/Survey/SurveyResponseController.php';
 require_once '../app/Controllers/Survey/SurveyResultsController.php';
 
+require_once '../app/Controllers/Survey/SurveyRetakeController.php';
+require_once '../app/Services/RetakeService.php';
+require_once '../app/Services/RetakeValidator.php';
+
 // Встановлюємо часовий пояс
 date_default_timezone_set('Europe/Kyiv');
 
@@ -54,7 +59,8 @@ spl_autoload_register(function ($className) {
             '../app/Views/Survey/',
             '../app/Views/Admin/',
             '../app/Views/Components/',
-            '../app/Views/Layouts/'
+            '../app/Views/Layouts/',
+            '../app/Views/Survey/Retake/'
         ];
 
         foreach ($viewPaths as $path) {
@@ -86,6 +92,18 @@ $router->handleCors();
 // === ГОЛОВНА СТОРІНКА (оновлений контролер) ===
 $router->get('/', 'HomeController', 'index');
 
+
+// === УПРАВЛІННЯ ПОВТОРНИМИ СПРОБАМИ ===
+$router->get('/surveys/retake-management', 'SurveyRetakeController', 'managementPage');
+$router->post('/surveys/retake/grant', 'SurveyRetakeController', 'grantRetake');
+$router->post('/surveys/retake/grant-bulk', 'SurveyRetakeController', 'grantBulkRetakes');
+$router->post('/surveys/retake/revoke', 'SurveyRetakeController', 'revokeRetake');
+$router->get('/surveys/retake/user-attempts', 'SurveyRetakeController', 'userAttempts');
+
+// === API ДЛЯ СТАТИСТИКИ ПОВТОРНИХ СПРОБ ===
+$router->get('/api/surveys/retake-stats', 'SurveyRetakeController', 'apiRetakeStats');
+
+
 // === ОСНОВНІ СТОРІНКИ ОПИТУВАНЬ (оновлені контролери) ===
 $router->get('/surveys', 'SurveyController', 'index');
 $router->get('/surveys/create', 'SurveyController', 'create');
@@ -109,6 +127,7 @@ $router->get('/surveys/response-details', 'SurveyResponseController', 'responseD
 
 // === РЕЗУЛЬТАТИ ТА СТАТИСТИКА ===
 $router->get('/surveys/results', 'SurveyResultsController', 'results');
+
 
 // === АВТОРИЗАЦІЯ ТА РЕЄСТРАЦІЯ (оновлені контролери) ===
 $router->get('/login', 'AuthController', 'showLogin');

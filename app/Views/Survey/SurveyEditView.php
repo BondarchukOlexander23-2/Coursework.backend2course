@@ -19,36 +19,63 @@ class SurveyEditView extends BaseView
         }
 
         return "
-            <div class='container'>
-                <div class='header-actions'>
-                    <h1>Редагування: " . $this->escape($survey['title']) . "</h1>
-                    " . $this->component('Navigation') . "
-                </div>
+        <div class='container'>
+            <div class='header-actions'>
+                <h1>Редагування: " . $this->escape($survey['title']) . "</h1>
+                " . $this->component('Navigation') . "
+            </div>
+            
+            <div class='survey-edit-sections'>
+                <section class='existing-questions'>
+                    <h2>Питання опитування</h2>
+                    <div class='questions-list'>
+                        {$questionsHtml}
+                    </div>
+                </section>
                 
-                <div class='survey-edit-sections'>
-                    <section class='existing-questions'>
-                        <h2>Питання опитування</h2>
-                        <div class='questions-list'>
-                            {$questionsHtml}
-                        </div>
-                    </section>
-                    
-                    <section class='add-question'>
-                        <h2>Додати нове питання</h2>
-                        " . $this->renderQuestionForm($survey['id']) . "
-                    </section>
-                </div>
+                " . $this->renderRetakeManagementButton($survey['id']) . "
                 
-                <div class='page-actions'>
-                    <a href='/surveys/view?id={$survey['id']}' class='btn btn-primary'>Переглянути опитування</a>
-                    <a href='/surveys/export-results?id={$survey['id']}&format=csv' class='btn btn-secondary'>Експорт CSV</a>
-                    <a href='/surveys/my' class='btn btn-secondary'>Мої опитування</a>
-                </div>
-                
-                " . $this->renderEditScript() . "
-                </div>";
+                <section class='add-question'>
+                    <h2>Додати нове питання</h2>
+                    " . $this->renderQuestionForm($survey['id']) . "
+                </section>
+            </div>
+            
+            <div class='page-actions'>
+                <a href='/surveys/view?id={$survey['id']}' class='btn btn-primary'>Переглянути опитування</a>
+                <a href='/surveys/results?id={$survey['id']}' class='btn btn-secondary'>Результати</a>
+                <a href='/surveys/export-results?id={$survey['id']}&format=csv' class='btn btn-secondary'>Експорт CSV</a>
+                <a href='/surveys/my' class='btn btn-secondary'>Мої опитування</a>
+            </div>
+            
+            " . $this->renderEditScript() . "
+            </div>";
     }
 
+    private function renderRetakeManagementButton(int $surveyId): string
+    {
+        // Перевіряємо чи є учасники
+        $participants = Database::selectOne(
+            "SELECT COUNT(DISTINCT user_id) as count FROM survey_responses WHERE survey_id = ? AND user_id IS NOT NULL",
+            [$surveyId]
+        );
+
+        $participantCount = $participants['count'] ?? 0;
+
+        if ($participantCount === 0) {
+            return '';
+        }
+
+        return "
+        <div class='retake-management-section'>
+            <h3>Управління повторними спробами</h3>
+            <p>Учасників: <strong>{$participantCount}</strong></p>
+            <p>Ви можете надати дозвіл на повторне проходження опитування окремим користувачам.</p>
+            <a href='/surveys/retake-management?survey_id={$surveyId}' class='btn btn-info'>
+                <span class='btn-icon'>🔄</span> Управляти повторними спробами
+            </a>
+        </div>";
+    }
     private function renderQuestionItem(array $question): string
     {
         $questionType = $this->escape($question['question_type']);
@@ -164,37 +191,52 @@ class SurveyEditView extends BaseView
     private function renderEditScript(): string
     {
         return "
-            <script>
-                let optionIndex = 2;
+             <script>
+            let optionIndex = 2;
+            
+            function toggleOptions() {
+                const type = document.getElementById('question_type').value;
+                const optionsSection = document.getElementById('options-section');
+                const textAnswerSection = document.getElementById('text-answer-section');
                 
-                function toggleOptions() {
-                    const type = document.getElementById('question_type').value;
-                    const optionsSection = document.getElementById('options-section');
-                    const textAnswerSection = document.getElementById('text-answer-section');
+                if (type === 'radio' || type === 'checkbox') {
+                    optionsSection.style.display = 'block';
+                    textAnswerSection.style.display = 'none';
+                } else if (type === 'text' || type === 'textarea') {
+                    optionsSection.style.display = 'none';
+                    textAnswerSection.style.display = 'block';
+                } else {
+                    optionsSection.style.display = 'none';
+                    textAnswerSection.style.display = 'none';
+                }
+            }
+            
+            function addOption() {
+                const container = document.getElementById('options-container');
+                const optionDiv = document.createElement('div');
+                optionDiv.className = 'option-input';
+                optionDiv.innerHTML = `
+                    <input type='text' name='options[]' placeholder='Варіант \${optionIndex + 1}'>
+                    <label><input type='checkbox' name='correct_options[]' value='\${optionIndex}'> Правильна</label>
+                `;
+                container.appendChild(optionDiv);
+                optionIndex++;
+            }
+            
+            // Анімація появи секції управління повторними спробами
+            document.addEventListener('DOMContentLoaded', function() {
+                const retakeSection = document.querySelector('.retake-management-section');
+                if (retakeSection) {
+                    retakeSection.style.opacity = '0';
+                    retakeSection.style.transform = 'translateY(20px)';
                     
-                    if (type === 'radio' || type === 'checkbox') {
-                        optionsSection.style.display = 'block';
-                        textAnswerSection.style.display = 'none';
-                    } else if (type === 'text' || type === 'textarea') {
-                        optionsSection.style.display = 'none';
-                        textAnswerSection.style.display = 'block';
-                    } else {
-                        optionsSection.style.display = 'none';
-                        textAnswerSection.style.display = 'none';
-                    }
+                    setTimeout(() => {
+                        retakeSection.style.transition = 'all 0.5s ease';
+                        retakeSection.style.opacity = '1';
+                        retakeSection.style.transform = 'translateY(0)';
+                    }, 500);
                 }
-                
-                function addOption() {
-                    const container = document.getElementById('options-container');
-                    const optionDiv = document.createElement('div');
-                    optionDiv.className = 'option-input';
-                    optionDiv.innerHTML = `
-                        <input type='text' name='options[]' placeholder='Варіант \${optionIndex + 1}'>
-                        <label><input type='checkbox' name='correct_options[]' value='\${optionIndex}'> Правильна</label>
-                    `;
-                    container.appendChild(optionDiv);
-                    optionIndex++;
-                }
-            </script>";
+            });
+        </script>";
     }
 }
