@@ -142,17 +142,19 @@ $router->get('/admin/dashboard', 'AdminController', 'dashboard');
 
 // Управління користувачами
 $router->get('/admin/users', 'AdminController', 'users');
-$router->post('/admin/delete-user', 'AdminController', 'deleteUser'); // Поки старий
-$router->post('/admin/change-user-role', 'AdminController', 'changeUserRole'); // Поки старий
+$router->post('/admin/delete-user', 'AdminController', 'deleteUser');
+$router->post('/admin/change-user-role', 'AdminController', 'changeUserRole');
 
 // Управління опитуваннями
 $router->get('/admin/surveys', 'AdminController', 'surveys');
+$router->get('/admin/edit-survey', 'AdminController', 'editSurvey');
+$router->post('/admin/update-survey', 'AdminController', 'updateSurvey');
 $router->post('/admin/delete-survey', 'AdminController', 'deleteSurvey');
 $router->post('/admin/toggle-survey-status', 'AdminController', 'toggleSurveyStatus');
 
 // Статистика та експорт
 $router->get('/admin/survey-stats', 'AdminController', 'surveyStats');
-$router->get('/admin/export-stats', 'AdminController', 'exportStats'); // Поки старий
+$router->get('/admin/export-stats', 'AdminController', 'exportStats');
 
 // === API ЕНДПОІНТИ (для демонстрації) ===
 $router->get('/api/surveys', 'SurveyController', 'apiIndex');

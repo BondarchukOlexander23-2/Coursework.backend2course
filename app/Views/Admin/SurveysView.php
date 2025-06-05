@@ -85,6 +85,9 @@ class SurveysView extends BaseView
                 <td>{$survey['response_count']}</td>
                 <td>{$survey['created_at']}</td>
                 <td class='actions'>
+                    <!-- НОВА КНОПКА РЕДАГУВАННЯ -->
+                    <a href='/admin/edit-survey?id={$survey['id']}' class='btn btn-sm btn-info'>Редагувати</a>
+                    
                     <a href='/admin/survey-stats?id={$survey['id']}' class='btn btn-sm btn-primary'>Статистика</a>
                     
                     <!-- Форма зміни статусу -->
