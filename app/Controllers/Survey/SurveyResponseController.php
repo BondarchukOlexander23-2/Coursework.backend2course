@@ -2,7 +2,6 @@
 
 /**
  * Простий SurveyResponseController
- * Створіть файл app/Controllers/Survey/SurveyResponseController.php
  */
 class SurveyResponseController extends BaseController
 {

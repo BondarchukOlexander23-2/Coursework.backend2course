@@ -4,10 +4,10 @@ require_once __DIR__ . '/../Views/Admin/DashboardView.php';
 require_once __DIR__ . '/../Views/Admin/UsersView.php';
 require_once __DIR__ . '/../Views/Admin/SurveysView.php';
 require_once __DIR__ . '/../Views/Admin/StatsView.php';
-require_once __DIR__ . '/../Views/Admin/EditSurveyView.php'; // НОВИЙ VIEW
+require_once __DIR__ . '/../Views/Admin/EditSurveyView.php';
 
 /**
- * Оновлений AdminController з винесенням логіки в'юшок у Views (SOLID принципи)
+ * Оновлений AdminController з усіма методами та дотриманням SOLID принципів
  */
 class AdminController extends BaseController
 {
@@ -106,7 +106,7 @@ class AdminController extends BaseController
     }
 
     /**
-     * ОНОВЛЕНИЙ МЕТОД: Редагування опитування з використанням окремого View
+     * Редагування опитування з використанням окремого View
      */
     public function editSurvey(): void
     {
@@ -230,6 +230,115 @@ class AdminController extends BaseController
     }
 
     /**
+     * НОВИЙ МЕТОД: Видалити користувача
+     */
+    public function deleteUser(): void
+    {
+        $this->safeExecute(function() {
+            $this->requireAdmin();
+
+            $userId = (int)$this->postParam('user_id', 0);
+
+            // Валідація через AdminValidator
+            $errors = $this->validator->validateUserDeletion($userId);
+
+            if (!empty($errors)) {
+                if ($this->isAjaxRequest()) {
+                    $this->sendAjaxResponse(false, $errors, 'Помилка видалення');
+                } else {
+                    $this->redirectWithMessage('/admin/users', 'error', implode('<br>', $errors));
+                }
+                return;
+            }
+
+            try {
+                $this->adminService->deleteUser($userId);
+
+                if ($this->isAjaxRequest()) {
+                    $this->sendAjaxResponse(true, null, 'Користувача видалено');
+                } else {
+                    $this->redirectWithMessage('/admin/users', 'success', 'Користувача успішно видалено');
+                }
+            } catch (Exception $e) {
+                if ($this->isAjaxRequest()) {
+                    $this->sendAjaxResponse(false, [$e->getMessage()], 'Помилка видалення');
+                } else {
+                    $this->redirectWithMessage('/admin/users', 'error', $e->getMessage());
+                }
+            }
+        });
+    }
+
+    /**
+     * НОВИЙ МЕТОД: Змінити роль користувача
+     */
+    public function changeUserRole(): void
+    {
+        $this->safeExecute(function() {
+            $this->requireAdmin();
+
+            $userId = (int)$this->postParam('user_id', 0);
+            $newRole = $this->postParam('role', '');
+
+            // Валідація через AdminValidator
+            $errors = $this->validator->validateRoleChange($userId, $newRole);
+
+            if (!empty($errors)) {
+                if ($this->isAjaxRequest()) {
+                    $this->sendAjaxResponse(false, $errors, 'Помилка зміни ролі');
+                } else {
+                    $this->redirectWithMessage('/admin/users', 'error', implode('<br>', $errors));
+                }
+                return;
+            }
+
+            try {
+                $this->adminService->changeUserRole($userId, $newRole);
+
+                if ($this->isAjaxRequest()) {
+                    $this->sendAjaxResponse(true, null, 'Роль користувача змінено');
+                } else {
+                    $this->redirectWithMessage('/admin/users', 'success', 'Роль користувача успішно змінено');
+                }
+            } catch (Exception $e) {
+                if ($this->isAjaxRequest()) {
+                    $this->sendAjaxResponse(false, [$e->getMessage()], 'Помилка зміни ролі');
+                } else {
+                    $this->redirectWithMessage('/admin/users', 'error', $e->getMessage());
+                }
+            }
+        });
+    }
+
+    /**
+     * НОВИЙ МЕТОД: Експорт статистики
+     */
+    public function exportStats(): void
+    {
+        $this->safeExecute(function() {
+            $this->requireAdmin();
+
+            $surveyId = $this->getIntParam('survey_id', 0);
+            $format = $this->getStringParam('type', 'csv');
+
+            // Валідація через AdminValidator
+            $errors = $this->validator->validateExportParams($surveyId, $format);
+
+            if (!empty($errors)) {
+                $this->redirectWithMessage('/admin/surveys', 'error', implode('<br>', $errors));
+                return;
+            }
+
+            try {
+                // Експорт через AdminService (метод відправить файл і завершить виконання)
+                $this->adminService->exportSurveyStats($surveyId, $format);
+            } catch (Exception $e) {
+                $this->redirectWithMessage('/admin/surveys', 'error', 'Помилка експорту: ' . $e->getMessage());
+            }
+        });
+    }
+
+    /**
      * Видалити опитування
      */
     public function deleteSurvey(): void
@@ -306,5 +415,47 @@ class AdminController extends BaseController
         if (!$this->isAdmin()) {
             throw new ForbiddenException('Доступ заборонено. Тільки для адміністраторів.');
         }
+    }
+
+    /**
+     * Допоміжний метод для відправки AJAX відповідей
+     * Перевизначаємо для роботи з помилками валідації
+     */
+    protected function sendAjaxResponse(bool $success, $data = null, string $message = ''): void
+    {
+        $response = [
+            'success' => $success,
+            'message' => $message
+        ];
+
+        // Якщо $data це масив помилок, додаємо їх як errors
+        if (is_array($data)) {
+            $response['errors'] = $data;
+        } elseif ($data !== null) {
+            $response['data'] = $data;
+        }
+
+        header('Content-Type: application/json');
+        echo json_encode($response);
+        exit;
+    }
+
+    /**
+     * Перевірка чи це AJAX запит
+     */
+    protected function isAjaxRequest(): bool
+    {
+        return isset($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+            strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+    }
+
+    /**
+     * Редирект з повідомленням
+     */
+    protected function redirectWithMessage(string $url, string $type, string $message): void
+    {
+        Session::setFlashMessage($type, $message);
+        header("Location: $url");
+        exit;
     }
 }
