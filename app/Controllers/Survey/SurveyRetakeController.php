@@ -276,7 +276,7 @@ class SurveyRetakeController extends BaseController
         $usersHtml = '';
 
         if (empty($users)) {
-            $usersHtml = '<tr><td colspan="6">Ще немає користувачів які проходили це опитування</td></tr>';
+            $usersHtml = '<tr><td colspan="7">Ще немає користувачів які проходили це опитування</td></tr>';
         } else {
             foreach ($users as $user) {
                 $percentage = $user['max_possible_score'] > 0
@@ -285,161 +285,531 @@ class SurveyRetakeController extends BaseController
 
                 $hasPermission = $user['has_retake_permission'] > 0;
                 $statusBadge = $hasPermission
-                    ? '<span style="background: #d4edda; color: #155724; padding: 4px 8px; border-radius: 12px; font-size: 12px;">Є дозвіл</span>'
-                    : '<span style="background: #f8d7da; color: #721c24; padding: 4px 8px; border-radius: 12px; font-size: 12px;">Немає дозволу</span>';
+                    ? '<span class="badge badge-success">Є дозвіл</span>'
+                    : '<span class="badge badge-danger">Немає дозволу</span>';
 
                 $actionButton = $hasPermission
-                    ? "<button onclick='revokeRetake({$user['user_id']})' style='background: #ffc107; color: #212529; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;'>Скасувати</button>"
-                    : "<button onclick='grantRetake({$user['user_id']})' style='background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;'>Надати дозвіл</button>";
+                    ? "<button onclick='revokeRetake({$user['user_id']})' class='btn btn-warning btn-sm'>Скасувати</button>"
+                    : "<button onclick='grantRetake({$user['user_id']})' class='btn btn-success btn-sm'>Надати дозвіл</button>";
 
                 $usersHtml .= "
-                    <tr>
-                        <td>
-                            <input type='checkbox' name='user_ids[]' value='{$user['user_id']}' class='user-checkbox'>
-                        </td>
-                        <td>" . htmlspecialchars($user['name']) . "</td>
-                        <td>" . htmlspecialchars($user['email']) . "</td>
-                        <td>{$user['attempts_count']}</td>
-                        <td>{$user['best_score']}/{$user['max_possible_score']} ({$percentage}%)</td>
-                        <td>" . date('d.m.Y H:i', strtotime($user['last_attempt'])) . "</td>
-                        <td>{$statusBadge}</td>
-                        <td>{$actionButton}</td>
-                    </tr>";
+                <tr>
+                    <td>
+                        <input type='checkbox' name='user_ids[]' value='{$user['user_id']}' class='user-checkbox'>
+                    </td>
+                    <td>
+                        <div class='user-info'>
+                            <div class='user-name'>" . htmlspecialchars($user['name']) . "</div>
+                            <div class='user-email'>" . htmlspecialchars($user['email']) . "</div>
+                        </div>
+                    </td>
+                    <td class='text-center'>{$user['attempts_count']}</td>
+                    <td class='text-center'>
+                        <div class='score-info'>
+                            <span class='score'>{$user['best_score']}/{$user['max_possible_score']}</span>
+                            <small class='percentage'>({$percentage}%)</small>
+                        </div>
+                    </td>
+                    <td class='text-center'>
+                        <small>" . date('d.m.Y H:i', strtotime($user['last_attempt'])) . "</small>
+                    </td>
+                    <td class='text-center'>{$statusBadge}</td>
+                    <td class='text-center actions-cell'>{$actionButton}</td>
+                </tr>";
             }
         }
 
         return "
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Управління повторними спробами</title>
-            <link rel='stylesheet' href='/assets/css/style.css'>
-            <style>
-                .stats { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; }
-                .stats div { display: inline-block; margin-right: 30px; }
-                .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-                .table th, .table td { padding: 12px; border: 1px solid #dee2e6; text-align: left; }
-                .table th { background: #e9ecef; }
-                .bulk-actions { margin: 20px 0; }
-                .bulk-actions button { margin-right: 10px; }
-            </style>
-        </head>
-        <body>
-            <div class='container'>
+    <!DOCTYPE html>
+    <html lang='uk'>
+    <head>
+        <meta charset='UTF-8'>
+        <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+        <title>Управління повторними спробами</title>
+        <link rel='stylesheet' href='/assets/css/style.css'>
+        <style>
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                margin: 0;
+                padding: 0;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                color: #2d3748;
+            }
+
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 30px 20px;
+                min-height: 100vh;
+            }
+
+            .header {
+                text-align: center;
+                margin-bottom: 40px;
+                padding: 30px;
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(10px);
+                border-radius: 20px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            }
+
+            .header h1 {
+                margin: 0 0 15px 0;
+                color: #2d3748;
+                font-size: 2.5rem;
+                font-weight: 700;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+
+            .header h2 {
+                margin: 0;
+                color: #718096;
+                font-size: 1.3rem;
+                font-weight: 400;
+            }
+
+            .stats {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 25px;
+                margin: 40px 0;
+            }
+
+            .stat-item {
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(10px);
+                padding: 30px;
+                border-radius: 20px;
+                text-align: center;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.18);
+                transition: all 0.3s ease;
+                position: relative;
+                overflow: hidden;
+            }
+
+            .stat-item::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 4px;
+                background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            }
+
+            .stat-item:hover {
+                transform: translateY(-8px);
+                box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+            }
+
+            .stat-number {
+                font-size: 3rem;
+                font-weight: 800;
+                margin-bottom: 10px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+
+            .stat-label {
+                font-size: 1rem;
+                color: #718096;
+                font-weight: 500;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+
+            .bulk-actions {
+                margin: 30px 0;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 15px;
+                align-items: center;
+                padding: 25px;
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(10px);
+                border-radius: 15px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            }
+
+            .btn {
+                padding: 12px 24px;
+                border: none;
+                border-radius: 12px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+                text-decoration: none;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.3s ease;
+                position: relative;
+                overflow: hidden;
+                min-height: 44px;
+            }
+
+            .btn::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+                transition: left 0.5s;
+            }
+
+            .btn:hover::before {
+                left: 100%;
+            }
+
+            .btn:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            }
+
+            .btn-primary { 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                color: white; 
+            }
+            .btn-success { 
+                background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); 
+                color: white; 
+            }
+            .btn-warning { 
+                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
+                color: white; 
+            }
+            .btn-secondary { 
+                background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); 
+                color: white; 
+            }
+            .btn-sm { 
+                padding: 8px 16px; 
+                font-size: 12px; 
+                min-height: 36px;
+            }
+
+            .table-container {
+                overflow-x: auto;
+                margin: 20px 0;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                background: white;
+            }
+
+            .table {
+                width: 100%;
+                border-collapse: collapse;
+                min-width: 800px;
+            }
+
+            .table th {
+                background: #f8f9fa;
+                padding: 15px 12px;
+                text-align: left;
+                font-weight: 600;
+                color: #495057;
+                border-bottom: 2px solid #dee2e6;
+                white-space: nowrap;
+            }
+
+            .table td {
+                padding: 12px;
+                border-bottom: 1px solid #dee2e6;
+                vertical-align: middle;
+            }
+
+            .table tbody tr:hover {
+                background-color: #f8f9fa;
+            }
+
+            .user-info {
+                min-width: 200px;
+            }
+
+            .user-name {
+                font-weight: 500;
+                color: #212529;
+                margin-bottom: 2px;
+            }
+
+            .user-email {
+                font-size: 0.85rem;
+                color: #6c757d;
+            }
+
+            .score-info {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .score {
+                font-weight: 500;
+            }
+
+            .percentage {
+                color: #6c757d;
+                margin-top: 2px;
+            }
+
+            .badge {
+                padding: 4px 12px;
+                border-radius: 20px;
+                font-size: 11px;
+                font-weight: 500;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .badge-success {
+                background: #d4edda;
+                color: #155724;
+            }
+
+            .badge-danger {
+                background: #f8d7da;
+                color: #721c24;
+            }
+
+            .text-center {
+                text-align: center;
+            }
+
+            .actions-cell {
+                white-space: nowrap;
+                width: 120px;
+            }
+
+            .navigation {
+                margin: 30px 0;
+                padding: 20px 0;
+                border-top: 1px solid #dee2e6;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .user-checkbox {
+                transform: scale(1.2);
+                cursor: pointer;
+            }
+
+            /* Responsive design */
+            @media (max-width: 768px) {
+                .container {
+                    padding: 15px;
+                }
+
+                .header h1 {
+                    font-size: 1.5rem;
+                }
+
+                .stats {
+                    flex-direction: column;
+                    gap: 15px;
+                }
+
+                .stat-item {
+                    flex-direction: row;
+                    justify-content: space-between;
+                    align-items: center;
+                    min-width: 100%;
+                }
+
+                .stat-number {
+                    font-size: 1.5rem;
+                    margin-bottom: 0;
+                }
+
+                .bulk-actions {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+
+                .btn {
+                    width: 100%;
+                    text-align: center;
+                }
+
+                .table th, .table td {
+                    padding: 8px 6px;
+                    font-size: 14px;
+                }
+
+                .user-info {
+                    min-width: 150px;
+                }
+
+                .user-name, .user-email {
+                    font-size: 12px;
+                }
+            }
+
+            @media (max-width: 480px) {
+                .stat-number {
+                    font-size: 1.2rem;
+                }
+
+                .table {
+                    min-width: 600px;
+                }
+
+                .table th, .table td {
+                    padding: 6px 4px;
+                    font-size: 12px;
+                }
+            }
+
+            /* Спеціальні стилі для маленьких екранів */
+            @media (max-width: 600px) {
+                .table-container {
+                    margin: 10px -15px;
+                    border-radius: 0;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='header'>
                 <h1>Управління повторними спробами</h1>
                 <h2>" . htmlspecialchars($survey['title']) . "</h2>
-                
-                <div class='stats'>
-                    <div><strong>Всього дозволів:</strong> {$stats['total_retakes']}</div>
-                    <div><strong>Використано:</strong> {$stats['used_retakes']}</div>
-                    <div><strong>Активних:</strong> {$stats['active_retakes']}</div>
+            </div>
+            
+            <div class='stats'>
+                <div class='stat-item'>
+                    <div class='stat-number'>{$stats['total_retakes']}</div>
+                    <div class='stat-label'>Всього дозволів</div>
                 </div>
-                
-                <div class='bulk-actions'>
-                    <button onclick='selectAll()' style='background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;'>Вибрати всіх</button>
-                    <button onclick='grantBulkRetakes()' style='background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;'>Надати дозволи вибраним</button>
+                <div class='stat-item'>
+                    <div class='stat-number'>{$stats['used_retakes']}</div>
+                    <div class='stat-label'>Використано</div>
                 </div>
-                
-                <form id='bulk-form'>
-                    <input type='hidden' name='survey_id' value='{$survey['id']}'>
+                <div class='stat-item'>
+                    <div class='stat-number'>{$stats['active_retakes']}</div>
+                    <div class='stat-label'>Активних</div>
+                </div>
+            </div>
+            
+            <div class='bulk-actions'>
+                <button onclick='selectAll()' class='btn btn-secondary'>Вибрати всіх</button>
+                <button onclick='grantBulkRetakes()' class='btn btn-success'>Надати дозволи вибраним</button>
+            </div>
+            
+            <form id='bulk-form'>
+                <input type='hidden' name='survey_id' value='{$survey['id']}'>
+                <div class='table-container'>
                     <table class='table'>
                         <thead>
                             <tr>
-                                <th>Вибрати</th>
+                                <th style='width: 50px;'>Вибрати</th>
                                 <th>Користувач</th>
-                                <th>Email</th>
-                                <th>Спроб</th>
-                                <th>Найкращий результат</th>
-                                <th>Остання спроба</th>
-                                <th>Статус</th>
-                                <th>Дії</th>
+                                <th style='width: 80px;'>Спроб</th>
+                                <th style='width: 120px;'>Результат</th>
+                                <th style='width: 100px;'>Остання спроба</th>
+                                <th style='width: 100px;'>Статус</th>
+                                <th style='width: 120px;'>Дії</th>
                             </tr>
                         </thead>
                         <tbody>
                             {$usersHtml}
                         </tbody>
                     </table>
-                </form>
-                
-                <div style='margin: 30px 0;'>
-                    <a href='/surveys/edit?id={$survey['id']}' style='background: #6c757d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;'>Назад до редагування</a>
-                    <a href='/surveys/results?id={$survey['id']}' style='background: #007cba; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; margin-left: 10px;'>Результати</a>
                 </div>
-            </div>
+            </form>
             
-            <script>
-                function selectAll() {
-                    const checkboxes = document.querySelectorAll('.user-checkbox');
-                    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-                    checkboxes.forEach(cb => cb.checked = !allChecked);
+            <div class='navigation'>
+                <a href='/surveys/edit?id={$survey['id']}' class='btn btn-secondary'>Назад до редагування</a>
+                <a href='/surveys/results?id={$survey['id']}' class='btn btn-primary'>Результати</a>
+            </div>
+        </div>
+        
+        <script>
+            function selectAll() {
+                const checkboxes = document.querySelectorAll('.user-checkbox');
+                const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+                checkboxes.forEach(cb => cb.checked = !allChecked);
+            }
+            
+            function grantRetake(userId) {
+                if (confirm('Надати дозвіл на повторне проходження?')) {
+                    fetch('/surveys/retake/grant', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                        body: 'survey_id={$survey['id']}&user_id=' + userId
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.message || 'Готово');
+                        location.reload();
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Виникла помилка');
+                    });
+                }
+            }
+            
+            function revokeRetake(userId) {
+                if (confirm('Скасувати дозвіл?')) {
+                    fetch('/surveys/retake/revoke', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                        body: 'survey_id={$survey['id']}&user_id=' + userId
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.message || 'Готово');
+                        location.reload();
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Виникла помилка');
+                    });
+                }
+            }
+            
+            function grantBulkRetakes() {
+                const form = document.getElementById('bulk-form');
+                const formData = new FormData(form);
+                const selectedUsers = formData.getAll('user_ids[]');
+                
+                if (selectedUsers.length === 0) {
+                    alert('Оберіть користувачів');
+                    return;
                 }
                 
-                function grantRetake(userId) {
-                    if (confirm('Надати дозвіл на повторне проходження?')) {
-                        fetch('/surveys/retake/grant', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                            body: 'survey_id={$survey['id']}&user_id=' + userId
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            alert(data.message || 'Готово');
-                            location.reload();
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            alert('Виникла помилка');
-                        });
-                    }
+                if (confirm('Надати дозвіл ' + selectedUsers.length + ' користувачам?')) {
+                    fetch('/surveys/retake/grant-bulk', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.message || 'Готово');
+                        location.reload();
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Виникла помилка');
+                    });
                 }
-                
-                function revokeRetake(userId) {
-                    if (confirm('Скасувати дозвіл?')) {
-                        fetch('/surveys/retake/revoke', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                            body: 'survey_id={$survey['id']}&user_id=' + userId
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            alert(data.message || 'Готово');
-                            location.reload();
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            alert('Виникла помилка');
-                        });
-                    }
-                }
-                
-                function grantBulkRetakes() {
-                    const form = document.getElementById('bulk-form');
-                    const formData = new FormData(form);
-                    const selectedUsers = formData.getAll('user_ids[]');
-                    
-                    if (selectedUsers.length === 0) {
-                        alert('Оберіть користувачів');
-                        return;
-                    }
-                    
-                    if (confirm('Надати дозвіл ' + selectedUsers.length + ' користувачам?')) {
-                        fetch('/surveys/retake/grant-bulk', {
-                            method: 'POST',
-                            body: formData
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            alert(data.message || 'Готово');
-                            location.reload();
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            alert('Виникла помилка');
-                        });
-                    }
-                }
-            </script>
-        </body>
-        </html>";
+            }
+        </script>
+    </body>
+    </html>";
     }
 }
