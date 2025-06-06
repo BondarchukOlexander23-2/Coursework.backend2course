@@ -36,7 +36,7 @@ class User
     {
         $user = self::findByEmail($email);
 
-        if ($user && self::verifyPassword($password, $user['password'])) {
+        if ($user && password_verify($password, $user['password'])) {
             unset($user['password']);
             return $user;
         }

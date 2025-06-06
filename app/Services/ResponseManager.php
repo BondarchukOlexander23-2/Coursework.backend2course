@@ -284,6 +284,8 @@ class ResponseManager
     {
         $this->logServerError();
         ob_end_flush();
+
+        $this->notifyAdminIfCritical();
     }
 
     /**
@@ -329,6 +331,11 @@ class ResponseManager
             " at " . date('Y-m-d H:i:s'));
     }
 
+    private function notifyAdminIfCritical(): void
+    {
+        if ($this->statusCode >= 500) {
+        }
+    }
 
     public static function notFound(string $message = "Сторінка не знайдена"): void
     {
