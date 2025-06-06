@@ -167,24 +167,6 @@ class Survey
     }
 
     /**
-     * Активувати/деактивувати опитування
-     */
-    public static function toggleActive(int $id): bool
-    {
-        $query = "UPDATE surveys SET is_active = !is_active, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
-        return Database::execute($query, [$id]) > 0;
-    }
-
-    /**
-     * Встановити статус активності опитування
-     */
-    public static function setActive(int $id, bool $isActive): bool
-    {
-        $query = "UPDATE surveys SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
-        return Database::execute($query, [$isActive ? 1 : 0, $id]) > 0;
-    }
-
-    /**
      * Отримати розширену статистику по опитуванню
      */
     public static function getDetailedStats(int $surveyId): array
@@ -237,82 +219,6 @@ class Survey
         return $result && $result['count'] > 0;
     }
 
-    /**
-     * Перевірити чи опитування готове для публікації (має питання)
-     */
-    public static function isReadyForPublishing(int $surveyId): bool
-    {
-        $query = "SELECT COUNT(*) as count FROM questions WHERE survey_id = ?";
-        $result = Database::selectOne($query, [$surveyId]);
-        return $result && $result['count'] > 0;
-    }
-
-    /**
-     * Клонувати опитування для користувача
-     */
-    public static function clone(int $originalSurveyId, int $newUserId, string $newTitle = ''): ?int
-    {
-        $originalSurvey = self::findById($originalSurveyId);
-        if (!$originalSurvey) {
-            return null;
-        }
-
-        $title = !empty($newTitle) ? $newTitle : "Копія: " . $originalSurvey['title'];
-
-        try {
-            // Створюємо нове опитування
-            $newSurveyId = self::create($title, $originalSurvey['description'], $newUserId);
-
-            // Копіюємо питання
-            $questions = Question::getBySurveyId($originalSurveyId);
-            foreach ($questions as $question) {
-                $newQuestionId = Question::create(
-                    $newSurveyId,
-                    $question['question_text'],
-                    $question['question_type'],
-                    $question['is_required'],
-                    $question['order_number']
-                );
-
-                // Копіюємо варіанти відповідей, якщо є
-                if ($question['has_options']) {
-                    $options = QuestionOption::getByQuestionId($question['id']);
-                    $optionTexts = array_column($options, 'option_text');
-                    QuestionOption::createMultiple($newQuestionId, $optionTexts);
-                }
-            }
-
-            return $newSurveyId;
-        } catch (Exception $e) {
-            if (isset($newSurveyId)) {
-                self::delete($newSurveyId);
-            }
-            throw $e;
-        }
-    }
-
-    /**
-     * Пошук опитувань за назвою або описом
-     */
-    public static function search(string $searchTerm, bool $activeOnly = true): array
-    {
-        $searchTerm = '%' . trim($searchTerm) . '%';
-
-        $whereClause = $activeOnly ? "WHERE s.is_active = 1 AND" : "WHERE";
-
-        $query = "SELECT s.*, u.name as author_name,
-                         COUNT(DISTINCT q.id) as question_count,
-                         COUNT(DISTINCT sr.id) as response_count
-                  FROM surveys s 
-                  JOIN users u ON s.user_id = u.id 
-                  LEFT JOIN questions q ON s.id = q.survey_id
-                  LEFT JOIN survey_responses sr ON s.id = sr.survey_id
-                  {$whereClause} (s.title LIKE ? OR s.description LIKE ?)
-                  GROUP BY s.id
-                  ORDER BY s.created_at DESC";
-
-        return Database::select($query, [$searchTerm, $searchTerm]);
-    }
 
     /**
      * Getters

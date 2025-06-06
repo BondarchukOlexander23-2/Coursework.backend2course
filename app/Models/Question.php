@@ -154,72 +154,12 @@ class Question
     }
 
     /**
-     * Оновити питання
-     */
-    public static function update(
-        int $id,
-        string $questionText,
-        string $questionType,
-        bool $isRequired,
-        int $orderNumber,
-        ?string $correctAnswer = null,
-        int $points = 1
-    ): bool {
-        $question = new self(0, $questionText, $questionType, $isRequired, $orderNumber, $correctAnswer, $points, $id);
-
-        $query = "UPDATE questions 
-                  SET question_text = ?, question_type = ?, is_required = ?, order_number = ?, correct_answer = ?, points = ?
-                  WHERE id = ?";
-
-        return Database::execute($query, [
-                $questionText,
-                $questionType,
-                $isRequired ? 1 : 0,
-                $orderNumber,
-                $correctAnswer,
-                $points,
-                $id
-            ]) > 0;
-    }
-
-    /**
-     * Встановити правильну відповідь для текстового питання
-     */
-    public static function setCorrectAnswer(int $id, ?string $correctAnswer): bool
-    {
-        $query = "UPDATE questions SET correct_answer = ? WHERE id = ?";
-        return Database::execute($query, [$correctAnswer, $id]) > 0;
-    }
-
-    /**
-     * Встановити бали за питання
-     */
-    public static function setPoints(int $id, int $points): bool
-    {
-        if ($points < 0) {
-            throw new InvalidArgumentException("Points cannot be negative");
-        }
-
-        $query = "UPDATE questions SET points = ? WHERE id = ?";
-        return Database::execute($query, [$points, $id]) > 0;
-    }
-
-    /**
      * Видалити питання
      */
     public static function delete(int $id): bool
     {
         $query = "DELETE FROM questions WHERE id = ?";
         return Database::execute($query, [$id]) > 0;
-    }
-
-    /**
-     * Видалити всі питання опитування
-     */
-    public static function deleteBySurveyId(int $surveyId): bool
-    {
-        $query = "DELETE FROM questions WHERE survey_id = ?";
-        return Database::execute($query, [$surveyId]) > 0;
     }
 
     /**

@@ -105,20 +105,6 @@ class ResponseManager
             ->sendResponse($content);
     }
 
-    /**
-     * Надіслати створену відповідь (201)
-     */
-    public function sendCreated(string $content, ?string $location = null): void
-    {
-        $this->setStatusCode(self::STATUS_CREATED)
-            ->setSecurityHeaders();
-
-        if ($location) {
-            $this->addHeader('Location', $location);
-        }
-
-        $this->sendResponse($content);
-    }
 
     /**
      * Надіслати редирект (302)
@@ -179,22 +165,6 @@ class ResponseManager
         $this->setStatusCode(self::STATUS_OK)
             ->setContentType('text/csv; charset=utf-8')
             ->addHeader('Content-Disposition', "attachment; filename=\"{$filename}\"")
-            ->setNoCacheHeaders()
-            ->disableBuffering()
-            ->sendResponse($content);
-
-        exit;
-    }
-
-    /**
-     * Надіслати файл для завантаження
-     */
-    public function sendDownload(string $content, string $filename, string $mimeType = 'application/octet-stream'): void
-    {
-        $this->setStatusCode(self::STATUS_OK)
-            ->setContentType($mimeType)
-            ->addHeader('Content-Disposition', "attachment; filename=\"{$filename}\"")
-            ->addHeader('Content-Length', (string)strlen($content))
             ->setNoCacheHeaders()
             ->disableBuffering()
             ->sendResponse($content);
@@ -314,8 +284,6 @@ class ResponseManager
     {
         $this->logServerError();
         ob_end_flush();
-
-        $this->notifyAdminIfCritical();
     }
 
     /**
@@ -361,11 +329,6 @@ class ResponseManager
             " at " . date('Y-m-d H:i:s'));
     }
 
-    private function notifyAdminIfCritical(): void
-    {
-        if ($this->statusCode >= 500) {
-        }
-    }
 
     public static function notFound(string $message = "Сторінка не знайдена"): void
     {
@@ -462,17 +425,5 @@ class ResponseManager
             </div>
         </body>
         </html>";
-    }
-
-    /**
-     * Скинути стан для нового запиту
-     */
-    public function reset(): self
-    {
-        $this->headers = [];
-        $this->statusCode = 200;
-        $this->contentType = 'text/html';
-        $this->bufferingEnabled = true;
-        return $this;
     }
 }

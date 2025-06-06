@@ -30,16 +30,6 @@ class Router
         $this->addRoute('POST', $path, $controller, $method);
     }
 
-    public function put(string $path, string $controller, string $method): void
-    {
-        $this->addRoute('PUT', $path, $controller, $method);
-    }
-
-    public function delete(string $path, string $controller, string $method): void
-    {
-        $this->addRoute('DELETE', $path, $controller, $method);
-    }
-
     /**
      * Додає маршрут до колекції маршрутів
      */
@@ -388,23 +378,6 @@ class Router
         }
 
         return $uri;
-    }
-
-    /**
-     * Отримати всі маршрути
-     */
-    public function getRoutes(): array
-    {
-        return $this->routes;
-    }
-
-    /**
-     * Перевірити чи існує маршрут
-     */
-    public function hasRoute(string $httpMethod, string $path): bool
-    {
-        $routeKey = $httpMethod . ':' . $path;
-        return isset($this->routes[$routeKey]);
     }
 
     /**

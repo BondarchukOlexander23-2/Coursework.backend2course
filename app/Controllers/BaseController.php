@@ -13,41 +13,6 @@ abstract class BaseController
     }
 
     /**
-     * Відправити успішну HTML сторінку
-     */
-    protected function renderPage(string $title, string $content, bool $enableCaching = false): void
-    {
-        $htmlContent = $this->buildHtmlPage($title, $content);
-
-        if ($enableCaching) {
-            $this->responseManager->sendCachedPage($htmlContent, 3600);
-        } else {
-            $this->responseManager->sendSuccess($htmlContent);
-        }
-    }
-
-    /**
-     * Відправити сторінку з користувацькими заголовками
-     */
-    protected function renderPageWithHeaders(string $title, string $content, array $headers = []): void
-    {
-        foreach ($headers as $name => $value) {
-            $this->responseManager->addHeader($name, $value);
-        }
-
-        $htmlContent = $this->buildHtmlPage($title, $content);
-        $this->responseManager->sendSuccess($htmlContent);
-    }
-
-    /**
-     * Відправити JSON відповідь
-     */
-    protected function sendJson(array $data, int $statusCode = ResponseManager::STATUS_OK): void
-    {
-        $this->responseManager->sendJson($data, $statusCode);
-    }
-
-    /**
      * Відправити редирект
      */
     protected function redirect(string $location, bool $permanent = false): void
@@ -62,58 +27,6 @@ abstract class BaseController
     {
         Session::setFlashMessage($type, $message);
         $this->redirect($location);
-    }
-
-    /**
-     * Відправити помилку 404
-     */
-    protected function notFound(string $message = "Сторінка не знайдена"): void
-    {
-        ResponseManager::notFound($message);
-    }
-
-    /**
-     * Відправити помилку 403
-     */
-    protected function forbidden(string $message = "Доступ заборонено"): void
-    {
-        ResponseManager::forbidden($message);
-    }
-
-    /**
-     * Відправити помилку валідації
-     */
-    protected function validationError(array $errors): void
-    {
-        $errorContent = $this->buildValidationErrorPage($errors);
-        $this->responseManager->sendClientError(
-            ResponseManager::STATUS_UNPROCESSABLE_ENTITY,
-            $errorContent
-        );
-    }
-
-    /**
-     * Відправити серверну помилку
-     */
-    protected function serverError(string $message = "Внутрішня помилка сервера"): void
-    {
-        ResponseManager::serverError($message);
-    }
-
-    /**
-     * Завантажити файл
-     */
-    protected function downloadFile(string $content, string $filename, string $mimeType = 'application/octet-stream'): void
-    {
-        $this->responseManager->sendDownload($content, $filename, $mimeType);
-    }
-
-    /**
-     * Завантажити CSV
-     */
-    protected function downloadCsv(string $content, string $filename): void
-    {
-        $this->responseManager->sendCsv($content, $filename);
     }
 
     /**
@@ -134,7 +47,7 @@ abstract class BaseController
         $this->requireAuth();
 
         if (!$this->isAdmin()) {
-            $this->forbidden('Доступ заборонено. Тільки для адміністраторів.');
+            ResponseManager::forbidden('Доступ заборонено. Тільки для адміністраторів.');
         }
     }
 
@@ -152,20 +65,6 @@ abstract class BaseController
         return $user && $user['role'] === 'admin';
     }
 
-    /**
-     * Валідувати дані та відправити помилки якщо є
-     */
-    protected function validateOrFail(array $data, callable $validator): array
-    {
-        $errors = $validator($data);
-
-        if (!empty($errors)) {
-            $this->validationError($errors);
-            exit;
-        }
-
-        return $data;
-    }
 
     /**
      * Безпечно отримати параметр з $_GET
@@ -201,82 +100,6 @@ abstract class BaseController
     }
 
     /**
-     * Побудувати HTML сторінку
-     */
-    protected function buildHtmlPage(string $title, string $content): string
-    {
-        $flashSuccess = Session::getFlashMessage('success');
-        $flashError = Session::getFlashMessage('error');
-
-        $flashHtml = '';
-        if ($flashSuccess) {
-            $flashHtml .= "<div class='flash-message success'>{$flashSuccess}</div>";
-        }
-        if ($flashError) {
-            $flashHtml .= "<div class='flash-message error'>{$flashError}</div>";
-        }
-
-        return "
-        <!DOCTYPE html>
-        <html lang='uk'>
-        <head>
-            <meta charset='UTF-8'>
-            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-            <title>{$title}</title>
-            <link rel='stylesheet' href='/assets/css/style.css'>
-        </head>
-        <body>
-            <div class='container'>
-                {$flashHtml}
-                {$content}
-            </div>
-        </body>
-        </html>";
-    }
-
-    /**
-     * Побудувати сторінку помилки валідації
-     */
-    protected function buildValidationErrorPage(array $errors): string
-    {
-        $errorList = implode('</li><li>', array_map('htmlspecialchars', $errors));
-
-        $content = "
-            <div class='validation-errors'>
-                <h1>Помилки валідації</h1>
-                <div class='error-message'>
-                    <ul><li>{$errorList}</li></ul>
-                </div>
-                <div class='form-actions'>
-                    <a href='javascript:history.back()' class='btn btn-secondary'>Назад</a>
-                    <a href='/' class='btn btn-primary'>На головну</a>
-                </div>
-            </div>";
-
-        return $this->buildHtmlPage('Помилка валідації', $content);
-    }
-
-    /**
-     * Обробити виняток з правильним статус кодом
-     */
-    protected function handleException(Exception $e): void
-    {
-        // Логуємо помилку
-        error_log("Controller Exception: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
-
-        // Визначаємо тип помилки за класом винятку
-        if ($e instanceof InvalidArgumentException) {
-            $this->validationError([$e->getMessage()]);
-        } elseif ($e instanceof UnauthorizedAccessException) {
-            $this->forbidden($e->getMessage());
-        } elseif ($e instanceof NotFoundException) {
-            $this->notFound($e->getMessage());
-        } else {
-            $this->serverError('Виникла непередбачена помилка');
-        }
-    }
-
-    /**
      * Try-catch wrapper для методів контролера
      */
     protected function safeExecute(callable $callback): void
@@ -284,7 +107,28 @@ abstract class BaseController
         try {
             $callback();
         } catch (Exception $e) {
-            $this->handleException($e);
+            error_log("Controller Exception: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
+
+            if ($e instanceof ValidationException) {
+                if ($this->isAjaxRequest()) {
+                    $this->responseManager->sendJson([
+                        'success' => false,
+                        'errors' => $e->getErrors(),
+                        'message' => $e->getUserMessage()
+                    ], ResponseManager::STATUS_UNPROCESSABLE_ENTITY);
+                } else {
+                    $content = $this->responseManager->renderErrorPage(422, $e->getUserMessage());
+                    $this->responseManager->sendClientError(ResponseManager::STATUS_UNPROCESSABLE_ENTITY, $content);
+                }
+            } elseif ($e instanceof ForbiddenException) {
+                ResponseManager::forbidden($e->getMessage());
+            } elseif ($e instanceof NotFoundException) {
+                ResponseManager::notFound($e->getMessage());
+            } elseif ($e instanceof DatabaseException) {
+                ResponseManager::serverError($e->getMessage());
+            } else {
+                ResponseManager::serverError('Виникла непередбачена помилка');
+            }
         }
     }
 
@@ -303,7 +147,7 @@ abstract class BaseController
         }
 
         $statusCode = $success ? ResponseManager::STATUS_OK : ResponseManager::STATUS_BAD_REQUEST;
-        $this->sendJson($response, $statusCode);
+        $this->responseManager->sendJson($response, $statusCode);
     }
 
     /**
@@ -313,25 +157,5 @@ abstract class BaseController
     {
         return isset($_SERVER['HTTP_X_REQUESTED_WITH']) &&
             strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
-    }
-
-    /**
-     * Відправити відповідь залежно від типу запиту (HTML або JSON)
-     */
-    protected function respondBasedOnRequest(string $successUrl, string $errorMessage, array $errors = []): void
-    {
-        if ($this->isAjaxRequest()) {
-            if (!empty($errors)) {
-                $this->sendAjaxResponse(false, $errors, $errorMessage);
-            } else {
-                $this->sendAjaxResponse(true, ['redirect' => $successUrl]);
-            }
-        } else {
-            if (!empty($errors)) {
-                $this->validationError($errors);
-            } else {
-                $this->redirect($successUrl);
-            }
-        }
     }
 }
