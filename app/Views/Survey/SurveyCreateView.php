@@ -46,7 +46,6 @@ class SurveyCreateView extends BaseView
                 </form>
             </div>
                 <script>
-                    // AJAX обробка форми для демонстрації
                     document.getElementById('create-survey-form').addEventListener('submit', function(e) {
                         e.preventDefault();
                         
@@ -69,7 +68,7 @@ class SurveyCreateView extends BaseView
                         })
                         .catch(error => {
                             console.error('Error:', error);
-                            this.submit(); // Fallback до звичайної submit
+                            this.submit();
                         });
                     });
                 </script>";

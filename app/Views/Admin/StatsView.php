@@ -70,7 +70,6 @@ class StatsView extends BaseView
     {
         return "
             <script>
-                // Анімація появи статистики
                 document.addEventListener('DOMContentLoaded', function() {
                     const questionStats = document.querySelectorAll('.question-stats');
                     
@@ -85,7 +84,6 @@ class StatsView extends BaseView
                         }, index * 100);
                     });
                     
-                    // Додаємо інтерактивність до метрик
                     const metrics = document.querySelectorAll('.question-metrics span');
                     metrics.forEach(function(metric) {
                         metric.addEventListener('mouseenter', function() {

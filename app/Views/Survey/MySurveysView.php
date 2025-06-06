@@ -57,7 +57,6 @@ class MySurveysView extends BaseView
         $responseCount = SurveyResponse::getCountBySurveyId($survey['id']);
         $questionCount = count(Question::getBySurveyId($survey['id']));
 
-        // Визначаємо тип опитування
         $isQuiz = Question::isQuiz($survey['id']);
         $surveyType = $isQuiz ? 'Квіз' : 'Опитування';
         $surveyTypeClass = $isQuiz ? 'quiz-badge' : 'survey-badge';
@@ -115,7 +114,6 @@ class MySurveysView extends BaseView
     {
         return "
             <script>
-                // Анімація для статистики
                 document.addEventListener('DOMContentLoaded', function() {
                     const statNumbers = document.querySelectorAll('.stat-number');
                     statNumbers.forEach(el => {

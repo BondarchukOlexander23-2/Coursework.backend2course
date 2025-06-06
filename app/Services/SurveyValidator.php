@@ -1,8 +1,7 @@
 <?php
 
 /**
- * Виправлений сервіс валідації для опитувань
- * Відповідає принципу Single Responsibility - тільки валідація даних
+ * Сервіс валідації для опитувань
  */
 class SurveyValidator
 {
@@ -64,7 +63,7 @@ class SurveyValidator
     }
 
     /**
-     * ВИПРАВЛЕНА валідація відповідей користувача
+     * Валідація відповідей користувача
      */
     public function validateAnswers(array $questions, array $answers): array
     {
@@ -76,7 +75,6 @@ class SurveyValidator
             $questionType = $question['question_type'];
             $questionText = $question['question_text'];
 
-            // Перевіряємо обов'язкові питання
             if ($isRequired) {
                 if (!isset($answers[$questionId])) {
                     $errors[] = "Питання '{$questionText}' є обов'язковим";
@@ -85,7 +83,6 @@ class SurveyValidator
 
                 $answer = $answers[$questionId];
 
-                // Перевіряємо залежно від типу питання
                 switch ($questionType) {
                     case Question::TYPE_RADIO:
                         if (!is_numeric($answer) || $answer <= 0) {
@@ -115,7 +112,6 @@ class SurveyValidator
                         break;
                 }
             } else {
-                // Для необов'язкових питань перевіряємо формат, якщо відповідь надана
                 if (isset($answers[$questionId]) && !empty($answers[$questionId])) {
                     $answer = $answers[$questionId];
 
@@ -165,9 +161,6 @@ class SurveyValidator
         return Survey::findById($surveyId);
     }
 
-    /**
-     * Валідація ID питання
-     */
     public function validateQuestionId(int $questionId): array
     {
         $errors = [];
@@ -184,9 +177,6 @@ class SurveyValidator
         return $errors;
     }
 
-    /**
-     * Валідація параметрів експорту
-     */
     public function validateExportParameters(int $surveyId, string $format): array
     {
         $errors = [];
@@ -203,9 +193,6 @@ class SurveyValidator
         return $errors;
     }
 
-    /**
-     * Валідація прав доступу до опитування
-     */
     public function validateSurveyAccess(int $surveyId, int $userId): array
     {
         $errors = [];
@@ -223,9 +210,6 @@ class SurveyValidator
         return $errors;
     }
 
-    /**
-     * Валідація можливості проходження опитування
-     */
     public function validateSurveyAvailability(int $surveyId, ?int $userId = null): array
     {
         $errors = [];
@@ -240,13 +224,11 @@ class SurveyValidator
             $errors[] = 'Це опитування неактивне';
         }
 
-        // Перевіряємо чи є питання
         $questions = Question::getBySurveyId($surveyId);
         if (empty($questions)) {
             $errors[] = 'Опитування не містить питань';
         }
 
-        // Перевіряємо чи користувач вже проходив опитування
         if ($userId && SurveyResponse::hasUserResponded($surveyId, $userId)) {
             $errors[] = 'Ви вже проходили це опитування';
         }
@@ -254,9 +236,6 @@ class SurveyValidator
         return $errors;
     }
 
-    /**
-     * Валідація масиву варіантів відповідей
-     */
     public function validateOptions(array $options): array
     {
         $errors = [];
@@ -283,9 +262,6 @@ class SurveyValidator
         return $errors;
     }
 
-    /**
-     * Валідація правильних відповідей для квізу
-     */
     public function validateCorrectAnswers(string $questionType, array $options, array $correctOptions): array
     {
         $errors = [];
@@ -302,7 +278,6 @@ class SurveyValidator
                 }
             }
 
-            // Для радіо кнопок може бути тільки одна правильна відповідь
             if ($questionType === Question::TYPE_RADIO && count($correctOptions) > 1) {
                 $errors[] = 'Для питання з одним варіантом може бути тільки одна правильна відповідь';
             }

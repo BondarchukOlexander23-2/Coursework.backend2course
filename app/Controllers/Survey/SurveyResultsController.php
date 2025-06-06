@@ -1,9 +1,5 @@
 <?php
 
-/**
- * Простий SurveyResultsController
- * Створіть файл app/Controllers/Survey/SurveyResultsController.php
- */
 class SurveyResultsController extends BaseController
 {
     private $validator;

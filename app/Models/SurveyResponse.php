@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Покращена модель відповіді на опитування з підтримкою квізів
+ * Модель відповіді на опитування з підтримкою квізів
  */
 class SurveyResponse
 {
@@ -9,8 +9,8 @@ class SurveyResponse
     private int $surveyId;
     private ?int $userId;
     private ?string $ipAddress;
-    private int $totalScore; // Загальний рахунок за квіз
-    private int $maxScore; // Максимально можливий рахунок
+    private int $totalScore;
+    private int $maxScore;
 
     public function __construct(
         int $surveyId,
@@ -38,7 +38,6 @@ class SurveyResponse
         int $totalScore = 0,
         int $maxScore = 0
     ): int {
-        // Якщо це повторна спроба з дозволом, відмічаємо дозвіл як використаний
         if ($userId) {
             $hasRetakePermission = Database::selectOne(
                 "SELECT id FROM survey_retakes 
@@ -92,12 +91,10 @@ class SurveyResponse
             [$surveyId, $userId]
         );
 
-        // Якщо є дозвіл на повторне проходження, дозволяємо пройти
         if (($hasRetakePermission['count'] ?? 0) > 0) {
-            return false; // Дозволяємо пройти опитування
+            return false;
         }
 
-        // Інакше перевіряємо звичайним способом
         $query = "SELECT COUNT(*) as count FROM survey_responses WHERE survey_id = ? AND user_id = ?";
         $result = Database::selectOne($query, [$surveyId, $userId]);
         return ($result['count'] ?? 0) > 0;
@@ -197,10 +194,6 @@ class SurveyResponse
         $result = Database::selectOne($query, [$surveyId]);
         return $result['count'] ?? 0;
     }
-
-    /**
-     * Перевірити чи користувач вже відповідав на опитування
-     */
 
 
     /**

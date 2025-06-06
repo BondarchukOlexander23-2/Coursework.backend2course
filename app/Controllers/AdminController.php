@@ -6,9 +6,6 @@ require_once __DIR__ . '/../Views/Admin/SurveysView.php';
 require_once __DIR__ . '/../Views/Admin/StatsView.php';
 require_once __DIR__ . '/../Views/Admin/EditSurveyView.php';
 
-/**
- * Оновлений AdminController з усіма методами та дотриманням SOLID принципів
- */
 class AdminController extends BaseController
 {
     private AdminValidator $validator;
@@ -106,7 +103,7 @@ class AdminController extends BaseController
     }
 
     /**
-     * Редагування опитування з використанням окремого View
+     * Редагування опитування
      */
     public function editSurvey(): void
     {
@@ -129,7 +126,6 @@ class AdminController extends BaseController
             $questionService = new QuestionService();
             $questionService->loadQuestionsWithOptions($questions);
 
-            // Використовуємо окремий View замість inline HTML
             $view = new EditSurveyView([
                 'title' => 'Редагування опитування',
                 'survey' => $survey,
@@ -144,7 +140,7 @@ class AdminController extends BaseController
     }
 
     /**
-     * Оновити опитування з адмін-панелі
+     * Оновлення опитування з адмін-панелі
      */
     public function updateSurvey(): void
     {
@@ -230,7 +226,7 @@ class AdminController extends BaseController
     }
 
     /**
-     * НОВИЙ МЕТОД: Видалити користувача
+     * Видалити користувача
      */
     public function deleteUser(): void
     {
@@ -270,7 +266,7 @@ class AdminController extends BaseController
     }
 
     /**
-     * НОВИЙ МЕТОД: Змінити роль користувача
+     * Змінити роль користувача
      */
     public function changeUserRole(): void
     {
@@ -311,7 +307,7 @@ class AdminController extends BaseController
     }
 
     /**
-     * НОВИЙ МЕТОД: Експорт статистики
+     * Експорт статистики
      */
     public function exportStats(): void
     {
@@ -321,7 +317,7 @@ class AdminController extends BaseController
             $surveyId = $this->getIntParam('survey_id', 0);
             $format = $this->getStringParam('type', 'csv');
 
-            // Валідація через AdminValidator
+
             $errors = $this->validator->validateExportParams($surveyId, $format);
 
             if (!empty($errors)) {
@@ -330,7 +326,6 @@ class AdminController extends BaseController
             }
 
             try {
-                // Експорт через AdminService (метод відправить файл і завершить виконання)
                 $this->adminService->exportSurveyStats($surveyId, $format);
             } catch (Exception $e) {
                 $this->redirectWithMessage('/admin/surveys', 'error', 'Помилка експорту: ' . $e->getMessage());
@@ -428,7 +423,6 @@ class AdminController extends BaseController
             'message' => $message
         ];
 
-        // Якщо $data це масив помилок, додаємо їх як errors
         if (is_array($data)) {
             $response['errors'] = $data;
         } elseif ($data !== null) {

@@ -1,8 +1,5 @@
 <?php
 
-/**
- * Простий SurveyResponseController
- */
 class SurveyResponseController extends BaseController
 {
     private $validator;

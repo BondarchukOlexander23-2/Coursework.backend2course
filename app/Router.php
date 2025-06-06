@@ -1,8 +1,7 @@
 <?php
 
 /**
- * Оновлений клас Router з підтримкою ResponseManager та буферизації
- * Відповідає принципам SOLID
+ * Клас Router з підтримкою ResponseManager та буферизації
  */
 class Router
 {
@@ -91,19 +90,16 @@ class Router
      */
     private function executeControllerSafely(string $controllerName, string $methodName): void
     {
-        // Перевірка чи існує клас контролера
         if (!class_exists($controllerName)) {
             throw new NotFoundException("Controller {$controllerName} not found");
         }
 
         $controller = new $controllerName();
 
-        // Перевірка чи існує метод у контролері
         if (!method_exists($controller, $methodName)) {
             throw new NotFoundException("Method {$methodName} not found in {$controllerName}");
         }
 
-        // Викликаємо метод контролера
         $controller->$methodName();
     }
 
@@ -115,7 +111,6 @@ class Router
         $statusCode = $e->getHttpStatusCode();
         $userMessage = $e->getUserMessage();
 
-        // Логуємо помилку
         error_log("App Exception [{$statusCode}]: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
 
         if ($e instanceof ValidationException) {
@@ -153,7 +148,6 @@ class Router
      */
     private function handleUnexpectedException(Throwable $e): void
     {
-        // Логуємо критичну помилку
         error_log("Critical Error: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
         error_log("Stack trace: " . $e->getTraceAsString());
 
@@ -383,15 +377,12 @@ class Router
      */
     private function parseUri(string $uri): string
     {
-        // Видаляємо GET параметри
         $uri = strtok($uri, '?');
 
-        // Додаємо слеш на початок якщо немає
         if ($uri !== '/' && !str_starts_with($uri, '/')) {
             $uri = '/' . $uri;
         }
 
-        // Видаляємо слеш в кінці (крім кореневого)
         if ($uri !== '/') {
             $uri = rtrim($uri, '/');
         }
@@ -421,7 +412,6 @@ class Router
      */
     public function addGlobalMiddleware(callable $middleware): void
     {
-        // Викликаємо middleware перед обробкою маршруту
         $middleware();
     }
 
@@ -430,14 +420,12 @@ class Router
      */
     public function handleCors(): void
     {
-        // Додаємо CORS заголовки для API
         if (strpos($this->requestUri, '/api/') === 0) {
             $this->responseManager
                 ->addHeader('Access-Control-Allow-Origin', '*')
                 ->addHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
                 ->addHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
 
-            // Обробляємо preflight OPTIONS запити
             if ($this->requestMethod === 'OPTIONS') {
                 $this->responseManager
                     ->setStatusCode(ResponseManager::STATUS_NO_CONTENT)

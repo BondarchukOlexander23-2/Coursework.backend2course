@@ -14,9 +14,6 @@ class Database
         'charset' => 'utf8mb4'
     ];
 
-    /**
-     * Отримати підключення до бази даних (Singleton)
-     */
     public static function getConnection(): PDO
     {
         if (self::$connection === null) {

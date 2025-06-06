@@ -7,7 +7,6 @@ class NavigationComponent extends BaseView
         if (Session::isLoggedIn()) {
             $userName = Session::getUserName();
 
-            // ВИПРАВЛЕННЯ: Правильна перевірка адміністратора
             $adminButton = "";
             if ($this->isAdmin()) {
                 $adminButton = "<a href='/admin' class='btn btn-sm' style='background: #f39c12; color: white;'>⚙️ Адмін</a>";

@@ -10,7 +10,6 @@ class ResponseManager
     private string $contentType = 'text/html';
     private bool $bufferingEnabled = true;
 
-    // Статус коди HTTP
     public const STATUS_OK = 200;
     public const STATUS_CREATED = 201;
     public const STATUS_NO_CONTENT = 204;
@@ -27,16 +26,11 @@ class ResponseManager
     public const STATUS_INTERNAL_SERVER_ERROR = 500;
     public const STATUS_SERVICE_UNAVAILABLE = 503;
 
-    /**
-     * Статичний екземпляр для Singleton паттерну
-     */
+
     private static ?ResponseManager $instance = null;
 
     private function __construct() {}
 
-    /**
-     * Отримати екземпляр ResponseManager (Singleton)
-     */
     public static function getInstance(): ResponseManager
     {
         if (self::$instance === null) {
@@ -45,48 +39,33 @@ class ResponseManager
         return self::$instance;
     }
 
-    /**
-     * Встановити статус код
-     */
     public function setStatusCode(int $statusCode): self
     {
         $this->statusCode = $statusCode;
         return $this;
     }
 
-    /**
-     * Встановити тип контенту
-     */
     public function setContentType(string $contentType): self
     {
         $this->contentType = $contentType;
         return $this;
     }
 
-    /**
-     * Додати заголовок
-     */
     public function addHeader(string $name, string $value): self
     {
         $this->headers[$name] = $value;
         return $this;
     }
 
-    /**
-     * Встановити заголовки безпеки
-     */
     public function setSecurityHeaders(): self
     {
-        $this->headers['X-Content-Type-Options'] = 'nosniff';
+        $this->headers['X-Content-Type-Options'] = 'nos niff';
         $this->headers['X-Frame-Options'] = 'DENY';
         $this->headers['X-XSS-Protection'] = '1; mode=block';
         $this->headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
         return $this;
     }
 
-    /**
-     * Встановити заголовки кешування
-     */
     public function setCacheHeaders(int $maxAge = 3600, bool $public = true): self
     {
         $cacheControl = $public ? 'public' : 'private';
@@ -95,9 +74,6 @@ class ResponseManager
         return $this;
     }
 
-    /**
-     * Заборонити кешування
-     */
     public function setNoCacheHeaders(): self
     {
         $this->headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
@@ -106,18 +82,13 @@ class ResponseManager
         return $this;
     }
 
-    /**
-     * Вимкнути буферизацію
-     */
     public function disableBuffering(): self
     {
         $this->bufferingEnabled = false;
         return $this;
     }
 
-    /**
-     * Увімкнути буферизацію
-     */
+
     public function enableBuffering(): self
     {
         $this->bufferingEnabled = true;
@@ -247,18 +218,14 @@ class ResponseManager
      */
     public function sendResponse(string $content): void
     {
-        // Відправляємо статус код
         http_response_code($this->statusCode);
 
-        // Відправляємо тип контенту
         header("Content-Type: {$this->contentType}; charset=utf-8");
 
-        // Відправляємо додаткові заголовки
         foreach ($this->headers as $name => $value) {
             header("{$name}: {$value}");
         }
 
-        // Визначаємо стратегію буферизації за статус кодом
         $this->handleBufferingStrategy($content);
     }
 
@@ -268,7 +235,6 @@ class ResponseManager
     private function handleBufferingStrategy(string $content): void
     {
         if (!$this->bufferingEnabled || $this->shouldDisableBuffering()) {
-            // Відправляємо контент безпосередньо
             echo $content;
             if (ob_get_level()) {
                 ob_end_flush();
@@ -284,21 +250,20 @@ class ResponseManager
 
         echo $content;
 
-        // Різні стратегії залежно від статус коду
         switch ($this->getStatusCodeRange()) {
-            case 2: // 2xx - успішні відповіді
+            case 2:
                 $this->handleSuccessResponse();
                 break;
 
-            case 3: // 3xx - редирект
+            case 3:
                 $this->handleRedirectResponse();
                 break;
 
-            case 4: // 4xx - помилки клієнта
+            case 4:
                 $this->handleClientErrorResponse();
                 break;
 
-            case 5: // 5xx - помилки сервера
+            case 5:
                 $this->handleServerErrorResponse();
                 break;
 
@@ -312,70 +277,44 @@ class ResponseManager
      */
     private function shouldDisableBuffering(): bool
     {
-        // Вимикаємо буферизацію для:
-        // - Файлових завантажень
-        // - Серверних помилок
-        // - Великих файлів
+
         return $this->statusCode >= 500 ||
             strpos($this->contentType, 'application/octet-stream') !== false ||
             isset($this->headers['Content-Disposition']);
     }
 
-    /**
-     * Отримати діапазон статус коду (2, 3, 4, 5)
-     */
     private function getStatusCodeRange(): int
     {
         return (int)floor($this->statusCode / 100);
     }
 
-    /**
-     * Обробка успішних відповідей (2xx)
-     */
     private function handleSuccessResponse(): void
     {
-        // Оптимізуємо буфер для успішних відповідей
         if (ob_get_length() > 4096) {
-            // Для великого контенту - відправляємо частинами
             ob_end_flush();
         } else {
-            // Для малого контенту - стискаємо та відправляємо
             $this->compressAndSend();
         }
     }
 
-    /**
-     * Обробка редиректів (3xx)
-     */
     private function handleRedirectResponse(): void
     {
-        // Для редиректів очищаємо буфер та відправляємо відразу
         ob_end_clean();
     }
 
-    /**
-     * Обробка помилок клієнта (4xx)
-     */
     private function handleClientErrorResponse(): void
     {
-        // Логуємо помилку клієнта якщо потрібно
         if ($this->statusCode >= 400) {
             $this->logClientError();
         }
-
         ob_end_flush();
     }
 
-    /**
-     * Обробка помилок сервера (5xx)
-     */
     private function handleServerErrorResponse(): void
     {
-        // Для серверних помилок - відправляємо відразу без буферизації
         $this->logServerError();
         ob_end_flush();
 
-        // Можна додати відправку повідомлення адміністратору
         $this->notifyAdminIfCritical();
     }
 
@@ -422,47 +361,30 @@ class ResponseManager
             " at " . date('Y-m-d H:i:s'));
     }
 
-    /**
-     * Повідомлення адміністратора про критичні помилки
-     */
     private function notifyAdminIfCritical(): void
     {
         if ($this->statusCode >= 500) {
-            // Тут можна додати відправку email або повідомлення в Slack
-            // Наприклад, зберегти в черзі для обробки
         }
     }
 
-    /**
-     * Створити помилку 404
-     */
     public static function notFound(string $message = "Сторінка не знайдена"): void
     {
         $instance = self::getInstance();
         $instance->sendClientError(self::STATUS_NOT_FOUND, $instance->renderErrorPage(404, $message));
     }
 
-    /**
-     * Створити помилку 403
-     */
     public static function forbidden(string $message = "Доступ заборонено"): void
     {
         $instance = self::getInstance();
         $instance->sendClientError(self::STATUS_FORBIDDEN, $instance->renderErrorPage(403, $message));
     }
 
-    /**
-     * Створити помилку 500
-     */
     public static function serverError(string $message = "Внутрішня помилка сервера"): void
     {
         $instance = self::getInstance();
         $instance->sendServerError(self::STATUS_INTERNAL_SERVER_ERROR, $instance->renderErrorPage(500, $message));
     }
 
-    /**
-     * Рендер сторінки помилки
-     */
     public function renderErrorPage(int $statusCode, string $message): string
     {
         $statusTexts = [

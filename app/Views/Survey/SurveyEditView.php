@@ -54,7 +54,6 @@ class SurveyEditView extends BaseView
 
     private function renderRetakeManagementButton(int $surveyId): string
     {
-        // Перевіряємо чи є учасники
         $participants = Database::selectOne(
             "SELECT COUNT(DISTINCT user_id) as count FROM survey_responses WHERE survey_id = ? AND user_id IS NOT NULL",
             [$surveyId]
@@ -220,7 +219,6 @@ class SurveyEditView extends BaseView
                 optionIndex++;
             }
             
-            // Анімація появи секції управління повторними спробами
             document.addEventListener('DOMContentLoaded', function() {
                 const retakeSection = document.querySelector('.retake-management-section');
                 if (retakeSection) {

@@ -1,13 +1,9 @@
 <?php
 /**
  * Сервіс для управління повторними спробами
- * Відповідає принципу Single Responsibility
  */
 class RetakeService
 {
-    /**
-     * Надати дозвіл на повторне проходження
-     */
     public function grantRetakePermission(int $surveyId, int $userId, int $grantedBy): array
     {
         $errors = $this->validateRetakeGrant($surveyId, $userId, $grantedBy);
@@ -20,7 +16,6 @@ class RetakeService
             $success = Survey::allowRetake($surveyId, $userId);
 
             if ($success) {
-                // Логуємо дію
                 error_log("Retake permission granted: Survey {$surveyId}, User {$userId}, By {$grantedBy}");
 
                 return [
@@ -74,27 +69,23 @@ class RetakeService
     {
         $errors = [];
 
-        // Перевіряємо чи існує опитування
         $survey = Survey::findById($surveyId);
         if (!$survey) {
             $errors[] = 'Опитування не знайдено';
             return $errors;
         }
 
-        // Перевіряємо чи користувач є автором опитування
         if (!Survey::isAuthor($surveyId, $grantedBy)) {
             $errors[] = 'Тільки автор опитування може надавати дозволи';
             return $errors;
         }
 
-        // Перевіряємо чи існує користувач
         $user = User::findById($userId);
         if (!$user) {
             $errors[] = 'Користувача не знайдено';
             return $errors;
         }
 
-        // Перевіряємо чи користувач вже проходив опитування
         $hasResponded = Database::selectOne(
             "SELECT COUNT(*) as count FROM survey_responses WHERE survey_id = ? AND user_id = ?",
             [$surveyId, $userId]
@@ -105,7 +96,6 @@ class RetakeService
             return $errors;
         }
 
-        // Перевіряємо чи не має вже активного дозволу
         if (Survey::isRetakeAllowed($surveyId, $userId)) {
             $errors[] = 'Користувач вже має активний дозвіл на повторне проходження';
             return $errors;
@@ -114,9 +104,7 @@ class RetakeService
         return $errors;
     }
 
-    /**
-     * Отримати статистику повторних спроб для опитування
-     */
+
     public function getRetakeStats(int $surveyId): array
     {
         $totalRetakes = Database::selectOne(

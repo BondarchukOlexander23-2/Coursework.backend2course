@@ -10,8 +10,8 @@ class QuestionAnswer
     private int $questionId;
     private ?int $optionId;
     private ?string $answerText;
-    private bool $isCorrect; // Чи правильна відповідь
-    private int $pointsEarned; // Зароблені бали
+    private bool $isCorrect;
+    private int $pointsEarned;
 
     public function __construct(
         int $responseId,

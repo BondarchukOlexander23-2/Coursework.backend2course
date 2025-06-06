@@ -84,7 +84,7 @@ class Session
         $_SESSION['user_id'] = $userId;
         $_SESSION['user_email'] = $email;
         $_SESSION['user_name'] = $name;
-        $_SESSION['user_role'] = $role; // Додано збереження ролі
+        $_SESSION['user_role'] = $role;
     }
 
     public static function destroy(): void

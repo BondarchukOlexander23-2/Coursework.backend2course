@@ -2,10 +2,6 @@
 
 require_once __DIR__ . '/../Views/Home/HomeView.php';
 
-/**
- * Оновлений HomeController з використанням Views
- * Демонструє застосування принципу Single Responsibility
- */
 class HomeController extends BaseController
 {
     public function __construct()

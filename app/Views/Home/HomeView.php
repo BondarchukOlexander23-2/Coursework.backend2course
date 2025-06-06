@@ -74,7 +74,6 @@ class HomeView extends BaseView
         if (Session::isLoggedIn()) {
             $userName = Session::getUserName();
 
-            // ВИПРАВЛЕННЯ: Використовуємо власний метод перевірки адміністратора
             $adminButton = "";
             if ($this->isAdmin()) {
                 $adminButton = "<a href='/admin' class='btn btn-sm btn-warning'>⚙️ Адмін-панель</a>";
@@ -96,9 +95,6 @@ class HomeView extends BaseView
         }
     }
 
-    /**
-     * ДОДАНО: Перевірити чи користувач є адміністратором
-     */
     private function isAdmin(): bool
     {
         $userId = Session::getUserId();

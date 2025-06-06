@@ -4,7 +4,6 @@ require_once __DIR__ . '/../BaseView.php';
 
 /**
  * View для редагування опитування з адмін-панелі
- * Дотримується принципу Single Responsibility - відповідає тільки за відображення сторінки редагування
  */
 class EditSurveyView extends BaseView
 {
@@ -171,9 +170,6 @@ class EditSurveyView extends BaseView
             </div>";
     }
 
-    /**
-     * CSS стилі для сторінки
-     */
     private function renderStyles(): string
     {
         return "
@@ -354,7 +350,6 @@ class EditSurveyView extends BaseView
                             const submitBtn = this.querySelector('button[type=\"submit\"]');
                             const originalText = submitBtn.textContent;
                             
-                            // Показати стан завантаження
                             submitBtn.disabled = true;
                             submitBtn.textContent = 'Збереження...';
                             
@@ -381,13 +376,11 @@ class EditSurveyView extends BaseView
                             .catch(error => {
                                 console.error('Error:', error);
                                 showMessage('Виникла помилка при збереженні', 'error');
-                                // Fallback - звичайна відправка форми
                                 this.submit();
                             });
                         });
                     }
                     
-                    // Анімація появи питань
                     const questionItems = document.querySelectorAll('.question-item');
                     questionItems.forEach((item, index) => {
                         item.style.opacity = '0';

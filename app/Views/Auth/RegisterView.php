@@ -46,8 +46,7 @@ class RegisterView extends BaseView
                 <a href='/' class='btn btn-secondary'>На головну</a>
             </div>
         </div>
-
-            </form>
-            </div>";
+        </form>
+        </div>";
     }
 }

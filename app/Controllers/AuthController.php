@@ -3,9 +3,6 @@
 require_once __DIR__ . '/../Views/Auth/LoginView.php';
 require_once __DIR__ . '/../Views/Auth/RegisterView.php';
 
-/**
- * Оновлений AuthController з використанням Views
- */
 class AuthController extends BaseController
 {
     public function __construct()
@@ -103,13 +100,13 @@ class AuthController extends BaseController
 
             if (empty($errors)) {
                 try {
-                    // Перевіряємо чи не існує вже користувач з таким email
+                    // перевірка чи не існує вже користувач з таким email
                     if (User::emailExists($email)) {
                         $errors[] = "Користувач з таким email вже існує";
                     } else {
                         $userId = User::create($name, $email, $password);
 
-                        // Автоматично логінимо користувача після реєстрації
+                        // Автичний логін користувача після реєстрації
                         session_start();
                         $_SESSION['user_id'] = $userId;
                         $_SESSION['user_email'] = $email;
@@ -124,7 +121,6 @@ class AuthController extends BaseController
                 }
             }
 
-            // Якщо є помилки - показуємо форму з помилками
             if (!empty($errors)) {
                 $view = new RegisterView([
                     'title' => 'Реєстрація',

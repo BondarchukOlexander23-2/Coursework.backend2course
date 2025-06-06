@@ -66,7 +66,6 @@ class AdminService
      */
     public function deleteUser(int $userId): bool
     {
-        // Перевіряємо, що це не останній адмін
         $adminCount = Database::selectOne("SELECT COUNT(*) as count FROM users WHERE role = 'admin'")['count'] ?? 0;
         $userRole = Database::selectOne("SELECT role FROM users WHERE id = ?", [$userId])['role'] ?? '';
 
@@ -74,7 +73,6 @@ class AdminService
             throw new Exception("Неможливо видалити останнього адміністратора");
         }
 
-        // Видаляємо користувача (каскадне видалення налаштовано в БД)
         return Database::execute("DELETE FROM users WHERE id = ?", [$userId]) > 0;
     }
 
@@ -163,7 +161,6 @@ class AdminService
      */
     public function deleteSurvey(int $surveyId): bool
     {
-        // Видаляємо опитування (каскадне видалення налаштовано в БД)
         return Database::execute("DELETE FROM surveys WHERE id = ?", [$surveyId]) > 0;
     }
 
@@ -180,7 +177,6 @@ class AdminService
      */
     public function getSurveyDetailedStats(int $surveyId): array
     {
-        // Загальна статистика
         $general = Database::selectOne(
             "SELECT 
                 COUNT(DISTINCT sr.id) as total_responses,
@@ -195,7 +191,6 @@ class AdminService
             [$surveyId]
         );
 
-        // Статистика по питаннях
         $questions = Database::select(
             "SELECT q.*, 
                     COUNT(qa.id) as answers_count,
@@ -245,7 +240,6 @@ class AdminService
             throw new Exception("Опитування не знайдено");
         }
 
-        // Отримуємо всі відповіді
         $responses = Database::select(
             "SELECT sr.id, sr.created_at, u.name as user_name, u.email,
                     sr.total_score, sr.max_score,
@@ -278,7 +272,6 @@ class AdminService
     {
         $activities = [];
 
-        // Останні реєстрації
         $recentUsers = Database::select(
             "SELECT name, created_at FROM users ORDER BY created_at DESC LIMIT 3"
         );
@@ -359,17 +352,12 @@ class AdminService
         exit;
     }
 
-    /**
-     * Експорт до Excel (базова реалізація)
-     */
     private function exportToExcel(array $data, string $filename, string $surveyTitle): void
     {
         $this->exportToCsv($data, $filename, $surveyTitle);
     }
 
-    /**
-     * Показати час у форматі "X хвилин тому"
-     */
+
     private function timeAgo(string $datetime): string
     {
         $time = time() - strtotime($datetime);

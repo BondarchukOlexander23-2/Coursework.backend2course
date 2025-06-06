@@ -54,21 +54,18 @@ class AdminValidator
             return $errors;
         }
 
-        // Перевіряємо валідність ролі
         $validRoles = ['user', 'admin'];
         if (!in_array($newRole, $validRoles)) {
             $errors[] = 'Невірна роль користувача';
             return $errors;
         }
 
-        // Перевіряємо чи існує користувач
         $user = User::findById($userId);
         if (!$user) {
             $errors[] = 'Користувача не знайдено';
             return $errors;
         }
 
-        // Перевіряємо чи не знижуємо роль самому собі
         if ($userId === Session::getUserId() && $newRole !== 'admin') {
             $errors[] = 'Не можна знизити власну роль';
             return $errors;
@@ -98,16 +95,11 @@ class AdminValidator
             return $errors;
         }
 
-        // Перевіряємо чи існує опитування
         $survey = Survey::findById($surveyId);
         if (!$survey) {
             $errors[] = 'Опитування не знайдено';
             return $errors;
         }
-
-        // Можна додати додаткові перевірки, наприклад:
-        // - чи має опитування активні відповіді
-        // - чи це не системне опитування тощо
 
         return $errors;
     }
@@ -169,7 +161,6 @@ class AdminValidator
             $errors[] = 'Пошуковий запит занадто довгий (максимум 255 символів)';
         }
 
-        // Можна додати перевірки на заборонені символи, SQL ін'єкції тощо
         if (preg_match('/[<>"\']/', $query)) {
             $errors[] = 'Пошуковий запит містить заборонені символи';
         }
@@ -225,7 +216,6 @@ class AdminValidator
             return $errors;
         }
 
-        // Перевіряємо що всі ID є числами
         foreach ($ids as $id) {
             if (!is_numeric($id) || $id <= 0) {
                 $errors[] = 'Невірний ID елемента';

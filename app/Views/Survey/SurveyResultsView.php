@@ -2,10 +2,6 @@
 
 require_once __DIR__ . '/../BaseView.php';
 
-/**
- * ВИПРАВЛЕНИЙ SurveyResultsView - використовує наявні CSS класи та принципи SOLID/DRY
- * Відповідає за відображення результатів опитувань та квізів
- */
 class SurveyResultsView extends BaseView
 {
     protected function content(): string
@@ -20,9 +16,6 @@ class SurveyResultsView extends BaseView
         }
     }
 
-    /**
-     * Рендеринг результатів квізу
-     */
     private function renderQuizResults(): string
     {
         $survey = $this->get('survey');
@@ -51,10 +44,6 @@ class SurveyResultsView extends BaseView
                 {$editLink}
             </div>";
     }
-
-    /**
-     * Рендеринг результатів звичайного опитування
-     */
     private function renderSurveyResults(): string
     {
         $survey = $this->get('survey');
@@ -86,9 +75,6 @@ class SurveyResultsView extends BaseView
             " . $this->renderResultsAnimationScript();
     }
 
-    /**
-     * Рендеринг результату користувача для квізу
-     */
     private function renderUserQuizResult(?array $userResult): string
     {
         if (!$userResult) {
@@ -119,9 +105,6 @@ class SurveyResultsView extends BaseView
             </div>";
     }
 
-    /**
-     * Рендеринг статистики квізу
-     */
     private function renderQuizStatistics(array $stats): string
     {
         return "
@@ -148,9 +131,6 @@ class SurveyResultsView extends BaseView
             </div>";
     }
 
-    /**
-     * Рендеринг топ результатів
-     */
     private function renderTopResults(array $topResults): string
     {
         if (empty($topResults)) {
@@ -172,9 +152,6 @@ class SurveyResultsView extends BaseView
             </div>";
     }
 
-    /**
-     * Рендеринг сводки опитування
-     */
     private function renderSurveySummary(array $survey, array $questions, int $totalResponses): string
     {
         return "
@@ -199,9 +176,6 @@ class SurveyResultsView extends BaseView
             </div>";
     }
 
-    /**
-     * Рендеринг результатів питань
-     */
     private function renderQuestionResults(array $questions, array $questionStats, int $totalResponses): string
     {
         if ($totalResponses === 0) {
@@ -224,9 +198,6 @@ class SurveyResultsView extends BaseView
         return $resultsHtml;
     }
 
-    /**
-     * Рендеринг результату одного питання
-     */
     private function renderSingleQuestionResult(array $question, array $stats, int $totalResponses, int $questionNumber): string
     {
         $questionText = $this->escape($question['question_text']);
@@ -245,9 +216,6 @@ class SurveyResultsView extends BaseView
             </div>";
     }
 
-    /**
-     * Рендеринг статистики для питань з варіантами відповідей
-     */
     private function renderChoiceQuestionStats(array $stats, int $totalResponses): string
     {
         $resultHtml = '';
@@ -269,9 +237,6 @@ class SurveyResultsView extends BaseView
         return $resultHtml;
     }
 
-    /**
-     * Рендеринг статистики для текстових питань
-     */
     private function renderTextQuestionStats(array $stats): string
     {
         $textAnswers = $stats['text_answers'] ?? [];
@@ -299,9 +264,6 @@ class SurveyResultsView extends BaseView
         return $answersHtml;
     }
 
-    /**
-     * Рендеринг сторінки без результатів
-     */
     private function renderNoResults(): string
     {
         $survey = $this->get('survey');
@@ -353,9 +315,7 @@ class SurveyResultsView extends BaseView
             </div>";
     }
 
-    /**
-     * Рендеринг посилання на редагування (якщо користувач - автор)
-     */
+
     private function renderEditLink(array $survey, bool $includeExport = false): string
     {
         if (!Session::isLoggedIn() || !Survey::isAuthor($survey['id'], Session::getUserId())) {
@@ -371,9 +331,6 @@ class SurveyResultsView extends BaseView
         return $editLinks;
     }
 
-    /**
-     * Допоміжні методи
-     */
     private function getResultLevel(float $percentage): string
     {
         if ($percentage >= 90) return 'Відмінно';
@@ -403,15 +360,12 @@ class SurveyResultsView extends BaseView
         return $answer['is_correct'] ? ' correct-text' : ' incorrect-text';
     }
 
-    /**
-     * JavaScript для анімацій
-     */
+
     private function renderResultsAnimationScript(): string
     {
         return "
             <script>
                 document.addEventListener('DOMContentLoaded', function() {
-                    // Анімація прогрес-барів
                     const progressBars = document.querySelectorAll('.progress');
                     
                     const observerOptions = {
@@ -440,7 +394,6 @@ class SurveyResultsView extends BaseView
                         observer.observe(bar);
                     });
                     
-                    // Анімація статистичних чисел
                     const statNumbers = document.querySelectorAll('.stat-number, .summary-number');
                     statNumbers.forEach(el => {
                         const finalText = el.textContent;
@@ -467,7 +420,6 @@ class SurveyResultsView extends BaseView
                         }
                     });
                     
-                    // Анімація появи результатів питань
                     const questionResults = document.querySelectorAll('.question-results');
                     questionResults.forEach((result, index) => {
                         result.style.opacity = '0';
@@ -480,7 +432,6 @@ class SurveyResultsView extends BaseView
                         }, index * 150 + 300);
                     });
                     
-                    // Анімація топ результатів
                     const topResultItems = document.querySelectorAll('.top-results li');
                     topResultItems.forEach((item, index) => {
                         item.style.opacity = '0';
@@ -493,7 +444,6 @@ class SurveyResultsView extends BaseView
                         }, index * 100 + 500);
                     });
                     
-                    // Плавна поява текстових відповідей
                     const textAnswers = document.querySelectorAll('.text-answer');
                     textAnswers.forEach((answer, index) => {
                         if (index < 5) { // Анімуємо тільки перші 5
@@ -509,7 +459,6 @@ class SurveyResultsView extends BaseView
                     });
                 });
                 
-                // Додаткові стилі для анімацій
                 const style = document.createElement('style');
                 style.textContent = \`
                     @keyframes slideIn {

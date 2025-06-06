@@ -13,7 +13,6 @@ class SurveyViewView extends BaseView
         $questions = $this->get('questions', []);
         $userHasResponded = $this->get('userHasResponded', false);
 
-        // Перевіряємо дозвіл на повторне проходження
         $retakeInfo = null;
         if (Session::isLoggedIn()) {
             $retakeInfo = Survey::getRetakeInfo($survey['id'], Session::getUserId());
@@ -52,7 +51,6 @@ class SurveyViewView extends BaseView
         $surveyType = $isQuiz ? 'квіз' : 'опитування';
         $totalQuestions = count($questions);
 
-        // Повідомлення про повторне проходження
         $retakeNotice = '';
         if ($retakeInfo && $retakeInfo['allowed']) {
             $retakeNotice = "
@@ -264,13 +262,11 @@ class SurveyViewView extends BaseView
                     }
                     
                     function showQuestion(questionNumber) {
-                        // Приховати всі питання
                         const allQuestions = document.querySelectorAll('.question');
                         allQuestions.forEach(function(question) {
                             question.style.display = 'none';
                         });
                         
-                        // Показати поточне питання з анімацією
                         const currentQuestionEl = document.querySelector('[data-question=\"' + questionNumber + '\"]');
                         if (currentQuestionEl) {
                             currentQuestionEl.style.display = 'block';
@@ -284,7 +280,6 @@ class SurveyViewView extends BaseView
                             }, 50);
                         }
                         
-                        // Оновити кнопки
                         prevBtn.disabled = questionNumber === 1;
                         
                         if (questionNumber === totalQuestions) {
@@ -346,44 +341,35 @@ class SurveyViewView extends BaseView
                         }
                     });
                     
-                    // Валідація форми перед відправкою
                     document.getElementById('survey-form').addEventListener('submit', function(e) {
                         if (!validateCurrentQuestion()) {
                             e.preventDefault();
                             return false;
                         }
                         
-                        // Показати індикатор завантаження
                         submitBtn.disabled = true;
                         submitBtn.innerHTML = '⏳ Відправляється...';
                         submitBtn.style.background = '#95a5a6';
                     });
                     
-                    // Функція для показу повідомлень
                     function showMessage(message, type) {
-                        // Видаляємо попередні повідомлення
                         const existingMessages = document.querySelectorAll('.flash-message');
                         existingMessages.forEach(msg => msg.remove());
                         
                         const messageDiv = document.createElement('div');
                         messageDiv.className = 'flash-message ' + type;
                         messageDiv.textContent = message;
-                        
-                        // Вставляємо повідомлення на початок форми
+
                         const form = document.getElementById('survey-form');
                         form.insertBefore(messageDiv, form.firstChild);
-                        
-                        // Прокручуємо до повідомлення
+
                         messageDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        
-                        // Видаляємо через 4 секунди
+
                         setTimeout(() => messageDiv.remove(), 4000);
                     }
                     
-                    // Ініціалізація
                     showQuestion(1);
-                    
-                    // Клавіатурна навігація
+
                     document.addEventListener('keydown', function(e) {
                         if (e.key === 'ArrowLeft' && !prevBtn.disabled) {
                             prevBtn.click();

@@ -1,7 +1,6 @@
 <?php
 /**
  * Валідатор для повторних спроб
- * Відповідає принципу Single Responsibility
  */
 class RetakeValidator
 {

@@ -46,7 +46,7 @@ class QuestionService
             );
             error_log("DEBUG QuestionService: Question created with ID: $questionId");
 
-            // Додаємо варіанти відповідей тільки для типів radio та checkbox
+
             if (in_array($questionType, [Question::TYPE_RADIO, Question::TYPE_CHECKBOX])) {
                 error_log("DEBUG QuestionService: Processing options for question type: $questionType");
                 error_log("DEBUG QuestionService: Options array: " . json_encode($options));
@@ -101,7 +101,6 @@ class QuestionService
         array $options,
         array $correctOptions
     ): bool {
-        // Оновлюємо основні дані питання
         $question = Question::findById($questionId);
         if (!$question) {
             throw new Exception("Question not found");
@@ -117,7 +116,6 @@ class QuestionService
             $points
         );
 
-        // Оновлюємо варіанти відповідей якщо потрібно
         if (in_array($questionType, [Question::TYPE_RADIO, Question::TYPE_CHECKBOX])) {
             $optionsData = [];
             foreach ($options as $index => $optionText) {
@@ -130,7 +128,6 @@ class QuestionService
             }
             QuestionOption::replaceForQuestion($questionId, $optionsData);
         } else {
-            // Видаляємо варіанти для текстових питань
             QuestionOption::deleteByQuestionId($questionId);
         }
 
@@ -161,35 +158,5 @@ class QuestionService
                 $orderNumber++;
             }
         }
-    }
-
-    /**
-     * Дублювати питання
-     */
-    public function duplicateQuestion(int $questionId, int $surveyId): int
-    {
-        $question = Question::findById($questionId, true);
-        if (!$question) {
-            throw new Exception("Question not found");
-        }
-
-        $newOrderNumber = Question::getNextOrderNumber($surveyId);
-        $newQuestionId = Question::create(
-            $surveyId,
-            $question['question_text'] . ' (копія)',
-            $question['question_type'],
-            $question['is_required'],
-            $newOrderNumber,
-            $question['correct_answer'],
-            $question['points']
-        );
-
-        // Копіюємо варіанти відповідей, якщо є
-        if ($question['has_options']) {
-            $options = QuestionOption::getByQuestionId($questionId);
-            QuestionOption::createMultiple($newQuestionId, $options);
-        }
-
-        return $newQuestionId;
     }
 }

@@ -1,13 +1,7 @@
 <?php
 
 /**
- * Покращена модель опитування
- * Відповідає принципам SOLID:
- * - Single Responsibility: відповідає тільки за роботу з опитуваннями
- * - Open/Closed: легко розширювати без зміни існуючого коду
- * - Liskov Substitution: може бути замінена похідними класами
- * - Interface Segregation: використовує тільки необхідні методи
- * - Dependency Inversion: залежить від абстракцій (Database), а не від конкретних реалізацій
+ * Модель опитування
  */
 class Survey
 {
@@ -234,7 +228,7 @@ class Survey
     }
 
     /**
-     * Перевірити чи користувач є автором опитування
+     * Перевірка чи користувач є автором опитування
      */
     public static function isAuthor(int $surveyId, int $userId): bool
     {
@@ -290,7 +284,6 @@ class Survey
 
             return $newSurveyId;
         } catch (Exception $e) {
-            // Якщо щось пішло не так, видаляємо створене опитування
             if (isset($newSurveyId)) {
                 self::delete($newSurveyId);
             }

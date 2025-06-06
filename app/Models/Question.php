@@ -1,8 +1,7 @@
 <?php
 
-/**
- * Покращена модель питання з підтримкою квізів та правильних відповідей
- * Відповідає принципу Single Responsibility
+/*
+ * Модель для підтримки квізів
  */
 class Question
 {
@@ -12,10 +11,9 @@ class Question
     private string $questionType;
     private bool $isRequired;
     private int $orderNumber;
-    private ?string $correctAnswer; // Для текстових питань
-    private int $points; // Бали за правильну відповідь
+    private ?string $correctAnswer;
+    private int $points;
 
-    // Типи питань
     public const TYPE_RADIO = 'radio';
     public const TYPE_CHECKBOX = 'checkbox';
     public const TYPE_TEXT = 'text';
@@ -167,7 +165,6 @@ class Question
         ?string $correctAnswer = null,
         int $points = 1
     ): bool {
-        // Валідуємо через конструктор
         $question = new self(0, $questionText, $questionType, $isRequired, $orderNumber, $correctAnswer, $points, $id);
 
         $query = "UPDATE questions 
@@ -268,13 +265,11 @@ class Question
                 break;
 
             case self::TYPE_CHECKBOX:
-                // Перевіряємо множинні варіанти
                 $correctOptions = QuestionOption::getCorrectByQuestionId($questionId);
                 if (!empty($correctOptions)) {
                     $correctIds = array_column($correctOptions, 'id');
                     $userAnswerIds = is_array($userAnswer) ? array_map('intval', $userAnswer) : [];
 
-                    // Правильно, якщо вибрані саме ті варіанти, що правильні
                     sort($correctIds);
                     sort($userAnswerIds);
                     $isCorrect = $correctIds === $userAnswerIds;

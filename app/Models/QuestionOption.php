@@ -1,8 +1,7 @@
 <?php
 
 /**
- * Покращена модель варіантів відповідей з підтримкою правильних відповідей
- * Відповідає принципу Single Responsibility
+ * Модель варіантів відповідей
  */
 class QuestionOption
 {
@@ -10,7 +9,7 @@ class QuestionOption
     private int $questionId;
     private string $optionText;
     private int $orderNumber;
-    private bool $isCorrect; // Нове поле для позначення правильної відповіді
+    private bool $isCorrect;
 
     public function __construct(
         int $questionId,
@@ -168,7 +167,6 @@ class QuestionOption
      */
     public static function update(int $id, string $optionText, int $orderNumber, bool $isCorrect = false): bool
     {
-        // Валідуємо через конструктор
         $option = new self(0, $optionText, $orderNumber, $isCorrect, $id);
 
         $query = "UPDATE question_options SET option_text = ?, order_number = ?, is_correct = ? WHERE id = ?";
@@ -179,15 +177,6 @@ class QuestionOption
                 $isCorrect ? 1 : 0,
                 $id
             ]) > 0;
-    }
-
-    /**
-     * Встановити правильність варіанту відповіді
-     */
-    public static function setCorrect(int $id, bool $isCorrect): bool
-    {
-        $query = "UPDATE question_options SET is_correct = ? WHERE id = ?";
-        return Database::execute($query, [$isCorrect ? 1 : 0, $id]) > 0;
     }
 
     /**
@@ -237,10 +226,8 @@ class QuestionOption
      */
     public static function replaceForQuestion(int $questionId, array $newOptions): array
     {
-        // Видаляємо старі варіанти
         self::deleteByQuestionId($questionId);
 
-        // Створюємо нові
         return self::createMultiple($questionId, $newOptions);
     }
 
@@ -302,9 +289,6 @@ class QuestionOption
         return $this->isCorrect;
     }
 
-    /**
-     * Конвертувати об'єкт в масив
-     */
     public function toArray(): array
     {
         return [

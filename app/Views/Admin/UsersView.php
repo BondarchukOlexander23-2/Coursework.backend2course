@@ -68,7 +68,6 @@ class UsersView extends BaseView
 
         $actionsHtml = '';
 
-        // Перевіряємо чи це не поточний користувач та чи не єдиний адмін
         $currentUserId = Session::getUserId();
         $isCurrentUser = ($user['id'] == $currentUserId);
 
@@ -154,11 +153,10 @@ class UsersView extends BaseView
                     .catch(error => {
                         console.error('Error:', error);
                         showMessage('Виникла помилка при виконанні операції', 'error');
-                        // У випадку помилки AJAX - відправляємо звичайну форму
                         form.submit();
                     });
                     
-                    return false; // Запобігаємо звичайній відправці форми
+                    return false; 
                 }
                 
                 function showMessage(message, type) {
@@ -192,7 +190,6 @@ class UsersView extends BaseView
                     setTimeout(() => messageDiv.remove(), 4000);
                 }
                 
-                // CSS анімація для повідомлень
                 if (!document.querySelector('#flash-animation-styles')) {
                     const style = document.createElement('style');
                     style.id = 'flash-animation-styles';
