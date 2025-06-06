@@ -351,28 +351,64 @@ class SurveyController extends BaseController
         $this->safeExecute(function() {
             $this->requireAuth();
 
-            $questionId = $this->getIntParam('question_id');
-            $surveyId = $this->getIntParam('survey_id');
+            // ВИПРАВЛЕННЯ: Використовуємо postParam() для POST запитів
+            $questionId = (int)$this->postParam('question_id', 0);
+            $surveyId = (int)$this->postParam('survey_id', 0);
+
+            // Додаткове логування для діагностики
+            error_log("DEBUG deleteQuestion: Question ID from POST: " . $questionId);
+            error_log("DEBUG deleteQuestion: Survey ID from POST: " . $surveyId);
+            error_log("DEBUG deleteQuestion: All POST data: " . json_encode($_POST));
+
+            if ($questionId <= 0) {
+                error_log("DEBUG deleteQuestion: Invalid question ID: " . $questionId);
+                throw new ValidationException(['Невірний ID питання']);
+            }
+
+            if ($surveyId <= 0) {
+                error_log("DEBUG deleteQuestion: Invalid survey ID: " . $surveyId);
+                throw new ValidationException(['Невірний ID опитування']);
+            }
 
             $survey = $this->validator->validateAndGetSurvey($surveyId);
-            if (!$survey || !Survey::isAuthor($surveyId, Session::getUserId())) {
+            if (!$survey) {
+                error_log("DEBUG deleteQuestion: Survey not found: " . $surveyId);
+                throw new NotFoundException('Опитування не знайдено');
+            }
+
+            if (!Survey::isAuthor($surveyId, Session::getUserId())) {
+                error_log("DEBUG deleteQuestion: User " . Session::getUserId() . " is not author of survey " . $surveyId);
+                error_log("DEBUG deleteQuestion: Survey author ID: " . ($survey['user_id'] ?? 'N/A'));
                 throw new ForbiddenException('У вас немає прав для редагування цього опитування');
             }
 
-            $errors = $this->validator->validateQuestionDeletion($questionId, $surveyId);
-            if (!empty($errors)) {
-                throw new ValidationException($errors);
+            // Перевіряємо чи існує питання і чи воно належить цьому опитуванню
+            $question = Question::findById($questionId);
+            if (!$question) {
+                error_log("DEBUG deleteQuestion: Question not found: " . $questionId);
+                throw new NotFoundException('Питання не знайдено');
+            }
+
+            if ($question['survey_id'] != $surveyId) {
+                error_log("DEBUG deleteQuestion: Question {$questionId} does not belong to survey {$surveyId}");
+                throw new ForbiddenException('Це питання не належить даному опитуванню');
             }
 
             try {
                 $this->questionService->deleteQuestion($questionId);
-                $this->redirectWithMessage(
-                    "/surveys/edit?id={$surveyId}",
-                    'success',
-                    'Питання успішно видалено'
-                );
+
+                if ($this->isAjaxRequest()) {
+                    $this->sendAjaxResponse(true, null, 'Питання успішно видалено');
+                } else {
+                    $this->redirectWithMessage(
+                        "/surveys/edit?id={$surveyId}",
+                        'success',
+                        'Питання успішно видалено'
+                    );
+                }
 
             } catch (Exception $e) {
+                error_log("DEBUG deleteQuestion: Exception during deletion: " . $e->getMessage());
                 throw new DatabaseException($e->getMessage(), 'Помилка при видаленні питання');
             }
         });

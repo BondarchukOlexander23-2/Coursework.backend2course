@@ -4,7 +4,6 @@ require_once __DIR__ . '/../BaseView.php';
 
 /**
  * View для відображення опитування для проходження
- * Показує питання та форму для відповідей
  */
 class SurveyViewView extends BaseView
 {
@@ -35,18 +34,16 @@ class SurveyViewView extends BaseView
                 " . $this->component('Navigation') . "
             </div>
             
-            <div class='already-responded'>
-                <div class='message-icon'>✅</div>
-                <h2>Ви вже проходили це опитування</h2>
+            <div class='no-surveys'>
+                <div class='no-surveys-icon'>✅</div>
+                <h3>Ви вже проходили це опитування</h3>
                 <p>Дякуємо за участь! Ви можете переглянути результати або повернутися до списку опитувань.</p>
                 
                 <div class='form-actions'>
-                    <a href='/surveys/results?id={$survey['id']}' class='btn btn-primary'>Переглянути результати</a>
-                    <a href='/surveys' class='btn btn-secondary'>До списку опитувань</a>
+                    <a href='/surveys/results?id={$survey['id']}' class='btn btn-primary btn-large'>Переглянути результати</a>
+                    <a href='/surveys' class='btn btn-secondary btn-large'>До списку опитувань</a>
                 </div>
-            </div>
-            
-            " . $this->renderAlreadyRespondedStyles();
+            </div>";
     }
 
     private function renderSurveyForm(array $survey, array $questions, ?array $retakeInfo = null): string
@@ -59,12 +56,12 @@ class SurveyViewView extends BaseView
         $retakeNotice = '';
         if ($retakeInfo && $retakeInfo['allowed']) {
             $retakeNotice = "
-            <div class='retake-notice'>
-                <div class='notice-icon'>🔄</div>
-                <div class='notice-content'>
-                    <h3>Дозвіл на повторне проходження</h3>
-                    <p>Вам надано дозвіл пройти це опитування ще раз.</p>
-                    <p><small>Дозвіл надано: {$retakeInfo['allowed_by']} " . date('d.m.Y H:i', strtotime($retakeInfo['allowed_at'])) . "</small></p>
+            <div class='retake-info-section'>
+                <div class='btn-icon'>🔄</div>
+                <h3>Дозвіл на повторне проходження</h3>
+                <p>Вам надано дозвіл пройти це опитування ще раз.</p>
+                <div class='retake-actions'>
+                    <small>Дозвіл надано: {$retakeInfo['allowed_by']} " . date('d.m.Y H:i', strtotime($retakeInfo['allowed_at'])) . "</small>
                 </div>
             </div>";
         }
@@ -85,87 +82,50 @@ class SurveyViewView extends BaseView
         
         {$retakeNotice}
         
-        <div class='survey-info'>
-            <div class='survey-meta'>
-                <div class='survey-description'>
-                    <p>" . $this->escape($survey['description']) . "</p>
+        <div class='survey-summary'>
+            <div class='summary-stats'>
+                <div class='summary-item'>
+                    <span class='summary-number'>" . ucfirst($surveyType) . "</span>
+                    <span class='summary-label'>Тип</span>
                 </div>
-                <div class='survey-stats'>
-                    <span class='survey-type " . ($isQuiz ? 'quiz' : 'survey') . "'>" . ucfirst($surveyType) . "</span>
-                    <span class='question-count'>{$totalQuestions} " . $this->getQuestionWord($totalQuestions) . "</span>
-                    <span class='author'>Автор: " . $this->escape($survey['author_name']) . "</span>
+                <div class='summary-item'>
+                    <span class='summary-number'>{$totalQuestions}</span>
+                    <span class='summary-label'>" . $this->getQuestionWord($totalQuestions) . "</span>
                 </div>
+                <div class='summary-item'>
+                    <span class='summary-number'>" . $this->escape($survey['author_name']) . "</span>
+                    <span class='summary-label'>Автор</span>
+                </div>
+            </div>
+            <div style='margin-top: 1.5rem; text-align: center;'>
+                <p style='color: rgba(255,255,255,0.9); font-size: 1.1rem;'>" . $this->escape($survey['description']) . "</p>
             </div>
         </div>
         
         <form method='POST' action='/surveys/submit' id='survey-form' class='survey-form'>
             <input type='hidden' name='survey_id' value='{$survey['id']}'>
             
-            <div class='progress-bar-container'>
+            <div class='question-results' style='background: #f8f9fa; border: 2px solid #3498db; margin-bottom: 2rem;'>
                 <div class='progress-bar'>
-                    <div class='progress' id='survey-progress'></div>
+                    <div class='progress' id='survey-progress' style='width: 0%;'></div>
                 </div>
-                <span class='progress-text'>Питання <span id='current-question'>1</span> з {$totalQuestions}</span>
+                <p style='text-align: center; margin-top: 1rem; color: #2c3e50; font-weight: 600;'>
+                    Питання <span id='current-question'>1</span> з {$totalQuestions}
+                </p>
             </div>
             
             <div class='questions-container'>
                 {$questionsHtml}
             </div>
             
-            <div class='form-navigation'>
+            <div class='form-actions'>
                 <button type='button' id='prev-btn' class='btn btn-secondary' disabled>← Попереднє</button>
                 <button type='button' id='next-btn' class='btn btn-primary'>Наступне →</button>
-                <button type='submit' id='submit-btn' class='btn btn-success' style='display: none;'>
-                    " . ($isQuiz ? 'Завершити квіз' : 'Відправити відповіді') . "
+                <button type='submit' id='submit-btn' class='btn btn-success btn-large' style='display: none;'>
+                    " . ($isQuiz ? '🎯 Завершити квіз' : '📝 Відправити відповіді') . "
                 </button>
             </div>
         </form>
-        
-        <style>
-            .retake-notice {
-                background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-                border: 2px solid #2196f3;
-                border-radius: 12px;
-                padding: 1.5rem;
-                margin: 1.5rem 0;
-                display: flex;
-                align-items: center;
-                gap: 1rem;
-                animation: slideIn 0.5s ease-out;
-            }
-            
-            .notice-icon {
-                font-size: 2.5rem;
-                color: #1976d2;
-            }
-            
-            .notice-content h3 {
-                margin: 0 0 0.5rem 0;
-                color: #1565c0;
-                font-size: 1.2rem;
-            }
-            
-            .notice-content p {
-                margin: 0.3rem 0;
-                color: #1976d2;
-            }
-            
-            .notice-content small {
-                color: #424242;
-                font-style: italic;
-            }
-            
-            @keyframes slideIn {
-                from {
-                    opacity: 0;
-                    transform: translateY(-20px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-            }
-        </style>
         
         " . $this->renderSurveyScript($totalQuestions);
     }
@@ -192,22 +152,19 @@ class SurveyViewView extends BaseView
                 break;
 
             case 'text':
-                $inputHtml = "<input type='text' name='answers[{$questionId}]' class='form-input' {$requiredAttr} placeholder='Введіть вашу відповідь'>";
+                $inputHtml = "<input type='text' name='answers[{$questionId}]' class='form-control' {$requiredAttr} placeholder='Введіть вашу відповідь'>";
                 break;
 
             case 'textarea':
-                $inputHtml = "<textarea name='answers[{$questionId}]' class='form-textarea' rows='4' {$requiredAttr} placeholder='Введіть детальну відповідь'></textarea>";
+                $inputHtml = "<textarea name='answers[{$questionId}]' class='form-control' rows='4' {$requiredAttr} placeholder='Введіть детальну відповідь'></textarea>";
                 break;
         }
 
         $displayStyle = $questionNumber === 1 ? 'block' : 'none';
 
         return "
-            <div class='question-slide' data-question='{$questionNumber}' style='display: {$displayStyle};'>
-                <div class='question-header'>
-                    <span class='question-number'>{$questionNumber}</span>
-                    <h3 class='question-text'>{$questionText} {$requiredLabel}</h3>
-                </div>
+            <div class='question' data-question='{$questionNumber}' style='display: {$displayStyle};'>
+                <h3>{$questionNumber}. {$questionText} {$requiredLabel}</h3>
                 <div class='question-input'>
                     {$inputHtml}
                 </div>
@@ -224,15 +181,14 @@ class SurveyViewView extends BaseView
                 $optionId = $option['id'];
 
                 $optionsHtml .= "
-                    <label class='option-label radio-option'>
+                    <label class='option-label'>
                         <input type='radio' name='answers[{$questionId}]' value='{$optionId}' {$requiredAttr}>
-                        <span class='option-checkmark'></span>
                         <span class='option-text'>{$optionText}</span>
                     </label>";
             }
         }
 
-        return "<div class='options-container'>{$optionsHtml}</div>";
+        return $optionsHtml;
     }
 
     private function renderCheckboxOptions(array $question, int $questionId): string
@@ -245,15 +201,14 @@ class SurveyViewView extends BaseView
                 $optionId = $option['id'];
 
                 $optionsHtml .= "
-                    <label class='option-label checkbox-option'>
+                    <label class='option-label'>
                         <input type='checkbox' name='answers[{$questionId}][]' value='{$optionId}'>
-                        <span class='option-checkmark'></span>
                         <span class='option-text'>{$optionText}</span>
                     </label>";
             }
         }
 
-        return "<div class='options-container'>{$optionsHtml}</div>";
+        return $optionsHtml;
     }
 
     private function determineIfQuiz(array $questions): bool
@@ -288,39 +243,6 @@ class SurveyViewView extends BaseView
         }
     }
 
-    private function renderAlreadyRespondedStyles(): string
-    {
-        return "
-            <style>
-                .already-responded {
-                    text-align: center;
-                    max-width: 600px;
-                    margin: 3rem auto;
-                    padding: 3rem;
-                    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-                    border-radius: 20px;
-                    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-                }
-                .message-icon {
-                    font-size: 4rem;
-                    margin-bottom: 1.5rem;
-                    color: #28a745;
-                }
-                .already-responded h2 {
-                    color: #2c3e50;
-                    margin-bottom: 1rem;
-                }
-                .already-responded p {
-                    color: #6c757d;
-                    font-size: 1.1rem;
-                    line-height: 1.6;
-                    margin-bottom: 2rem;
-                }
-            </style>";
-    }
-
-
-
     private function renderSurveyScript(int $totalQuestions): string
     {
         return "
@@ -343,15 +265,23 @@ class SurveyViewView extends BaseView
                     
                     function showQuestion(questionNumber) {
                         // Приховати всі питання
-                        const allQuestions = document.querySelectorAll('.question-slide');
+                        const allQuestions = document.querySelectorAll('.question');
                         allQuestions.forEach(function(question) {
                             question.style.display = 'none';
                         });
                         
-                        // Показати поточне питання
+                        // Показати поточне питання з анімацією
                         const currentQuestionEl = document.querySelector('[data-question=\"' + questionNumber + '\"]');
                         if (currentQuestionEl) {
                             currentQuestionEl.style.display = 'block';
+                            currentQuestionEl.style.opacity = '0';
+                            currentQuestionEl.style.transform = 'translateY(20px)';
+                            
+                            setTimeout(() => {
+                                currentQuestionEl.style.transition = 'all 0.3s ease';
+                                currentQuestionEl.style.opacity = '1';
+                                currentQuestionEl.style.transform = 'translateY(0)';
+                            }, 50);
                         }
                         
                         // Оновити кнопки
@@ -380,7 +310,7 @@ class SurveyViewView extends BaseView
                                     if (radio.checked) isChecked = true;
                                 });
                                 if (!isChecked) {
-                                    alert('Будь ласка, оберіть відповідь на це питання.');
+                                    showMessage('Будь ласка, оберіть відповідь на це питання.', 'error');
                                     return false;
                                 }
                             } else if (input.type === 'checkbox') {
@@ -390,11 +320,11 @@ class SurveyViewView extends BaseView
                                     if (checkbox.checked) isChecked = true;
                                 });
                                 if (!isChecked) {
-                                    alert('Будь ласка, оберіть принаймні один варіант.');
+                                    showMessage('Будь ласка, оберіть принаймні один варіант.', 'error');
                                     return false;
                                 }
                             } else if (!input.value.trim()) {
-                                alert('Будь ласка, заповніть це поле.');
+                                showMessage('Будь ласка, заповніть це поле.', 'error');
                                 input.focus();
                                 return false;
                             }
@@ -425,17 +355,45 @@ class SurveyViewView extends BaseView
                         
                         // Показати індикатор завантаження
                         submitBtn.disabled = true;
-                        submitBtn.textContent = 'Відправляється...';
+                        submitBtn.innerHTML = '⏳ Відправляється...';
+                        submitBtn.style.background = '#95a5a6';
                     });
+                    
+                    // Функція для показу повідомлень
+                    function showMessage(message, type) {
+                        // Видаляємо попередні повідомлення
+                        const existingMessages = document.querySelectorAll('.flash-message');
+                        existingMessages.forEach(msg => msg.remove());
+                        
+                        const messageDiv = document.createElement('div');
+                        messageDiv.className = 'flash-message ' + type;
+                        messageDiv.textContent = message;
+                        
+                        // Вставляємо повідомлення на початок форми
+                        const form = document.getElementById('survey-form');
+                        form.insertBefore(messageDiv, form.firstChild);
+                        
+                        // Прокручуємо до повідомлення
+                        messageDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        
+                        // Видаляємо через 4 секунди
+                        setTimeout(() => messageDiv.remove(), 4000);
+                    }
                     
                     // Ініціалізація
                     showQuestion(1);
                     
-                    // Автозбереження прогресу (опціонально)
-                    setInterval(function() {
-                        // Тут можна зберігати прогрес в localStorage
-                        // але в Claude.ai це не підтримується
-                    }, 30000);
+                    // Клавіатурна навігація
+                    document.addEventListener('keydown', function(e) {
+                        if (e.key === 'ArrowLeft' && !prevBtn.disabled) {
+                            prevBtn.click();
+                        } else if (e.key === 'ArrowRight' && nextBtn.style.display !== 'none') {
+                            nextBtn.click();
+                        } else if (e.key === 'Enter' && submitBtn.style.display !== 'none') {
+                            e.preventDefault();
+                            submitBtn.click();
+                        }
+                    });
                 });
             </script>";
     }

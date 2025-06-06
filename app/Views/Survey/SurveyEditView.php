@@ -101,7 +101,7 @@ class SurveyEditView extends BaseView
         }
 
         return "
-            <div class='container'>
+            
                 <div class='question-item'>
                     <div class='question-header'>
                         <h4>{$questionText}{$required} <span class='question-points'>({$points} б.)</span></h4>
@@ -114,14 +114,12 @@ class SurveyEditView extends BaseView
                         <input type='hidden' name='survey_id' value='{$this->get('survey')['id']}'>
                         <button type='submit' class='btn btn-danger btn-sm' onclick='return confirm(\"Видалити це питання?\")'>Видалити</button>
                     </form>
-                </div>
-            </div>";
+                </div>";
     }
 
     private function renderQuestionForm(int $surveyId): string
     {
         return "
-            <div class='container'>
                 <form method='POST' action='/surveys/add-question' id='questionForm'>
                     <input type='hidden' name='survey_id' value='{$surveyId}'>
                     
@@ -184,8 +182,7 @@ class SurveyEditView extends BaseView
                     <div class='form-actions'>
                         <button type='submit' class='btn btn-success'>Додати питання</button>
                     </div>
-                </form>
-            </div>";
+                </form>";
     }
 
     private function renderEditScript(): string
