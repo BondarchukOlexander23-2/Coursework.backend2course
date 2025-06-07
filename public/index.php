@@ -1,4 +1,3 @@
-
 <?php
 
 
@@ -40,7 +39,11 @@ require_once '../app/Views/Components/FlashMessageComponent.php';
 require_once '../app/Controllers/HomeController.php';
 require_once '../app/Controllers/AuthController.php';
 require_once '../app/Controllers/Survey/SurveyController.php';
-require_once '../app/Controllers/AdminController.php';
+
+require_once '../app/Controllers/Admin/AdminDashboardController.php';
+require_once '../app/Controllers/Admin/AdminUserController.php';
+require_once '../app/Controllers/Admin/AdminSurveyController.php';
+
 require_once '../app/Controllers/Survey/SurveyResponseController.php';
 require_once '../app/Controllers/Survey/SurveyResultsController.php';
 
@@ -117,7 +120,7 @@ $router->get('/surveys/my', 'SurveyController', 'my');
 
 
 $router->post('/surveys/add-question', 'SurveyController', 'addQuestion');
-$router->post('/surveys/delete-question', 'SurveyController', 'deleteQuestion'); // Поки старий
+$router->post('/surveys/delete-question', 'SurveyController', 'deleteQuestion');
 
 
 $router->get('/surveys/export-results', 'SurveyController', 'exportResults');
@@ -140,25 +143,26 @@ $router->get('/register', 'AuthController', 'showRegister');
 $router->post('/register', 'AuthController', 'register');
 $router->get('/logout', 'AuthController', 'logout');
 
+// ОНОВЛЕННЯ: Маршрути тепер використовують окремі контролери
+// Дашборд адмін-панелі
+$router->get('/admin', 'AdminDashboardController', 'dashboard');
+$router->get('/admin/dashboard', 'AdminDashboardController', 'dashboard');
 
-$router->get('/admin', 'AdminController', 'dashboard');
-$router->get('/admin/dashboard', 'AdminController', 'dashboard');
+// Управління користувачами
+$router->get('/admin/users', 'AdminUserController', 'users');
+$router->post('/admin/delete-user', 'AdminUserController', 'deleteUser');
+$router->post('/admin/change-user-role', 'AdminUserController', 'changeUserRole');
 
+// Управління опитуваннями
+$router->get('/admin/surveys', 'AdminSurveyController', 'surveys');
+$router->get('/admin/edit-survey', 'AdminSurveyController', 'editSurvey');
+$router->post('/admin/update-survey', 'AdminSurveyController', 'updateSurvey');
+$router->post('/admin/delete-survey', 'AdminSurveyController', 'deleteSurvey');
+$router->post('/admin/toggle-survey-status', 'AdminSurveyController', 'toggleSurveyStatus');
 
-$router->get('/admin/users', 'AdminController', 'users');
-$router->post('/admin/delete-user', 'AdminController', 'deleteUser');
-$router->post('/admin/change-user-role', 'AdminController', 'changeUserRole');
-
-
-$router->get('/admin/surveys', 'AdminController', 'surveys');
-$router->get('/admin/edit-survey', 'AdminController', 'editSurvey');
-$router->post('/admin/update-survey', 'AdminController', 'updateSurvey');
-$router->post('/admin/delete-survey', 'AdminController', 'deleteSurvey');
-$router->post('/admin/toggle-survey-status', 'AdminController', 'toggleSurveyStatus');
-
-
-$router->get('/admin/survey-stats', 'AdminController', 'surveyStats');
-$router->get('/admin/export-stats', 'AdminController', 'exportStats');
+// Статистика і експорт
+$router->get('/admin/survey-stats', 'AdminSurveyController', 'surveyStats');
+$router->get('/admin/export-stats', 'AdminSurveyController', 'exportStats');
 
 
 $router->get('/api/surveys', 'SurveyController', 'apiIndex');
@@ -287,7 +291,7 @@ function renderMaintenancePage(): string
         <div class='maintenance-page'>
             <div class='maintenance-content'>
                 <div class='maintenance-icon'>🔧</div>
-                <h1 class='maintenance-title'>Технічні шоколадки</h1>
+                <h1 class='maintenance-title'>Технічні роботи</h1>
                 <p class='maintenance-message'>
                     Наразі проводяться планові технічні роботи для покращення сервісу.
                     Спробуйте пізніше. Дякуємо за розуміння!
