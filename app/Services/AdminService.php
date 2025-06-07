@@ -14,15 +14,19 @@ class AdminService
         $totalSurveys = Database::selectOne("SELECT COUNT(*) as count FROM surveys")['count'] ?? 0;
         $activeSurveys = Database::selectOne("SELECT COUNT(*) as count FROM surveys WHERE is_active = 1")['count'] ?? 0;
         $totalResponses = Database::selectOne("SELECT COUNT(*) as count FROM survey_responses")['count'] ?? 0;
+        $totalCategories = Database::selectOne("SELECT COUNT(*) as count FROM categories WHERE is_active = 1")['count'] ?? 0;
 
-        $recentActivity = $this->getRecentActivity();
+        $recentActivity = $this->getRecentActivityWithCategories();
+        $categoryStats = $this->getCategoryStats();
 
         return [
             'total_users' => $totalUsers,
             'total_surveys' => $totalSurveys,
             'active_surveys' => $activeSurveys,
             'total_responses' => $totalResponses,
-            'recent_activity' => $recentActivity
+            'total_categories' => $totalCategories,
+            'recent_activity' => $recentActivity,
+            'category_stats' => $categoryStats
         ];
     }
 
@@ -137,11 +141,12 @@ class AdminService
     /**
      * Отримати загальну кількість опитувань
      */
-    public function getTotalSurveysCount(string $search = '', string $status = 'all'): int
+    public function getTotalSurveysCount(string $search = '', string $status = 'all', int $categoryId = 0): int
     {
         $searchTerm = '%' . $search . '%';
 
         $statusCondition = '';
+        $categoryCondition = '';
         $params = [$searchTerm, $searchTerm];
 
         if ($status === 'active') {
@@ -150,7 +155,12 @@ class AdminService
             $statusCondition = " AND is_active = 0";
         }
 
-        $query = "SELECT COUNT(*) as count FROM surveys WHERE (title LIKE ? OR description LIKE ?) {$statusCondition}";
+        if ($categoryId > 0) {
+            $categoryCondition = " AND category_id = ?";
+            $params[] = $categoryId;
+        }
+
+        $query = "SELECT COUNT(*) as count FROM surveys WHERE (title LIKE ? OR description LIKE ?) {$statusCondition} {$categoryCondition}";
         $result = Database::selectOne($query, $params);
 
         return $result['count'] ?? 0;
@@ -230,6 +240,77 @@ class AdminService
         ];
     }
 
+    private function getCategoryStats(): array
+    {
+        $query = "SELECT c.name, c.icon, c.color, COUNT(s.id) as surveys_count
+              FROM categories c
+              LEFT JOIN surveys s ON c.id = s.category_id AND s.is_active = 1
+              WHERE c.is_active = 1
+              GROUP BY c.id
+              ORDER BY surveys_count DESC
+              LIMIT 5";
+
+        return Database::select($query);
+    }
+
+    /**
+     * Остання активність з категоріями
+     */
+    private function getRecentActivityWithCategories(): array
+    {
+        $activities = [];
+
+        // Останні користувачі
+        $recentUsers = Database::select(
+            "SELECT name, created_at FROM users ORDER BY created_at DESC LIMIT 2"
+        );
+
+        foreach ($recentUsers as $user) {
+            $activities[] = [
+                'icon' => '👤',
+                'description' => "Новий користувач: " . htmlspecialchars($user['name']),
+                'time' => $this->timeAgo($user['created_at'])
+            ];
+        }
+
+        // Останні опитування з категоріями
+        $recentSurveys = Database::select(
+            "SELECT s.title, s.created_at, u.name as author, c.name as category_name, c.icon as category_icon
+         FROM surveys s 
+         JOIN users u ON s.user_id = u.id 
+         LEFT JOIN categories c ON s.category_id = c.id
+         ORDER BY s.created_at DESC LIMIT 3"
+        );
+
+        foreach ($recentSurveys as $survey) {
+            $categoryInfo = $survey['category_name'] ? " ({$survey['category_icon']} {$survey['category_name']})" : "";
+            $activities[] = [
+                'icon' => '📋',
+                'description' => "Нове опитування: " . htmlspecialchars($survey['title']) . " від " . htmlspecialchars($survey['author']) . $categoryInfo,
+                'time' => $this->timeAgo($survey['created_at'])
+            ];
+        }
+
+        // Останні категорії
+        $recentCategories = Database::select(
+            "SELECT name, icon, created_at FROM categories ORDER BY created_at DESC LIMIT 2"
+        );
+
+        foreach ($recentCategories as $category) {
+            $activities[] = [
+                'icon' => '🏷️',
+                'description' => "Нова категорія: {$category['icon']} " . htmlspecialchars($category['name']),
+                'time' => $this->timeAgo($category['created_at'])
+            ];
+        }
+
+        // Сортуємо по часу
+        usort($activities, function($a, $b) {
+            return strcmp($b['time'], $a['time']);
+        });
+
+        return array_slice($activities, 0, 8);
+    }
     /**
      * Експортувати статистику опитування
      */
@@ -265,6 +346,48 @@ class AdminService
         }
     }
 
+
+    /**
+     * Отримати опитування з категоріями
+     */
+    public function getSurveysWithCategories(int $page = 1, string $search = '', string $status = 'all', int $categoryId = 0): array
+    {
+        $offset = ($page - 1) * 20;
+        $searchTerm = '%' . $search . '%';
+
+        $statusCondition = '';
+        $categoryCondition = '';
+        $params = [$searchTerm, $searchTerm];
+
+        if ($status === 'active') {
+            $statusCondition = " AND s.is_active = 1";
+        } elseif ($status === 'inactive') {
+            $statusCondition = " AND s.is_active = 0";
+        }
+
+        if ($categoryId > 0) {
+            $categoryCondition = " AND s.category_id = ?";
+            $params[] = $categoryId;
+        }
+
+        $query = "SELECT s.*, u.name as author_name, c.name as category_name, 
+                     c.color as category_color, c.icon as category_icon,
+                     COUNT(DISTINCT q.id) as question_count,
+                     COUNT(DISTINCT sr.id) as response_count
+              FROM surveys s 
+              JOIN users u ON s.user_id = u.id
+              LEFT JOIN categories c ON s.category_id = c.id
+              LEFT JOIN questions q ON s.id = q.survey_id
+              LEFT JOIN survey_responses sr ON s.id = sr.survey_id
+              WHERE (s.title LIKE ? OR s.description LIKE ?) {$statusCondition} {$categoryCondition}
+              GROUP BY s.id
+              ORDER BY s.created_at DESC
+              LIMIT 20 OFFSET ?";
+
+        $params[] = $offset;
+
+        return Database::select($query, $params);
+    }
     /**
      * Отримати останню активність
      */

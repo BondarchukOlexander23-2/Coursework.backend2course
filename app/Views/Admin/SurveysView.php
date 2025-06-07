@@ -9,62 +9,68 @@ class SurveysView extends BaseView
     protected function content(): string
     {
         $surveys = $this->get('surveys', []);
+        $categories = $this->get('categories', []);
         $currentPage = $this->get('currentPage', 1);
         $totalPages = $this->get('totalPages', 1);
         $search = $this->get('search', '');
         $status = $this->get('status', 'all');
+        $categoryFilter = $this->get('category', 0);
 
         $surveysHtml = '';
         foreach ($surveys as $survey) {
             $surveysHtml .= $this->renderSurveyRow($survey);
         }
 
+        $categoryFilterHtml = $this->renderCategoryFilter($categories, $categoryFilter);
+
         $pagination = $this->component('Pagination', [
             'baseUrl' => '/admin/surveys',
             'currentPage' => $currentPage,
             'totalPages' => $totalPages,
-            'params' => ['search' => $search, 'status' => $status]
+            'params' => ['search' => $search, 'status' => $status, 'category' => $categoryFilter]
         ]);
 
         return "
-            <div class='admin-header'>
-                <h1>Управління опитуваннями</h1>
-                " . $this->component('AdminNavigation') . "
-            </div>
-            
-            <div class='admin-filters'>
-                <form method='GET' action='/admin/surveys' class='filter-form'>
-                    <input type='text' name='search' placeholder='Пошук опитувань...' value='" . $this->escape($search) . "'>
-                    <select name='status'>
-                        <option value='all'" . ($status === 'all' ? ' selected' : '') . ">Всі статуси</option>
-                        <option value='active'" . ($status === 'active' ? ' selected' : '') . ">Активні</option>
-                        <option value='inactive'" . ($status === 'inactive' ? ' selected' : '') . ">Неактивні</option>
-                    </select>
-                    <button type='submit' class='btn btn-primary'>Фільтрувати</button>
-                </form>
-            </div>
-            
-            <div class='table-container'>
-                <table class='admin-table'>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Опитування</th>
-                            <th>Автор</th>
-                            <th>Статус</th>
-                            <th>Питань</th>
-                            <th>Відповідей</th>
-                            <th>Створено</th>
-                            <th>Дії</th>
-                        </tr>
-                    </thead>
-                    <tbody>{$surveysHtml}</tbody>
-                </table>
-            </div>
-            
-            {$pagination}
-            
-            " . $this->renderSurveyScript() . "";
+        <div class='admin-header'>
+            <h1>Управління опитуваннями</h1>
+            " . $this->component('AdminNavigation') . "
+        </div>
+        
+        <div class='admin-filters'>
+            <form method='GET' action='/admin/surveys' class='filter-form'>
+                <input type='text' name='search' placeholder='Пошук опитувань...' value='" . $this->escape($search) . "'>
+                <select name='status'>
+                    <option value='all'" . ($status === 'all' ? ' selected' : '') . ">Всі статуси</option>
+                    <option value='active'" . ($status === 'active' ? ' selected' : '') . ">Активні</option>
+                    <option value='inactive'" . ($status === 'inactive' ? ' selected' : '') . ">Неактивні</option>
+                </select>
+                {$categoryFilterHtml}
+                <button type='submit' class='btn btn-primary'>Фільтрувати</button>
+            </form>
+        </div>
+        
+        <div class='table-container'>
+            <table class='admin-table'>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Опитування</th>
+                        <th>Категорія</th>
+                        <th>Автор</th>
+                        <th>Статус</th>
+                        <th>Питань</th>
+                        <th>Відповідей</th>
+                        <th>Створено</th>
+                        <th>Дії</th>
+                    </tr>
+                </thead>
+                <tbody>{$surveysHtml}</tbody>
+            </table>
+        </div>
+        
+        {$pagination}
+        
+        " . $this->renderSurveyScript();
     }
 
     private function renderSurveyRow(array $survey): string
@@ -72,42 +78,76 @@ class SurveysView extends BaseView
         $statusClass = $survey['is_active'] ? 'status-active' : 'status-inactive';
         $statusText = $survey['is_active'] ? 'Активне' : 'Неактивне';
 
+        $categoryBadge = 'Без категорії';
+        if (!empty($survey['category_name'])) {
+            $categoryBadge = "
+            <span class='category-mini-badge' style='background-color: {$survey['category_color']}'>
+                {$survey['category_icon']} " . $this->escape($survey['category_name']) . "
+            </span>";
+        }
+
         return "
-            <tr>
-                <td>{$survey['id']}</td>
-                <td>
-                    <strong>" . $this->escape($survey['title']) . "</strong><br>
-                    <small>" . $this->escape(substr($survey['description'], 0, 100)) . "...</small>
-                </td>
-                <td>" . $this->escape($survey['author_name']) . "</td>
-                <td><span class='status-badge {$statusClass}'>{$statusText}</span></td>
-                <td>{$survey['question_count']}</td>
-                <td>{$survey['response_count']}</td>
-                <td>{$survey['created_at']}</td>
-                <td class='actions'>
-                    <!-- НОВА КНОПКА РЕДАГУВАННЯ -->
-                    <a href='/admin/edit-survey?id={$survey['id']}' class='btn btn-sm btn-info'>Редагувати</a>
-                    
-                    <a href='/admin/survey-stats?id={$survey['id']}' class='btn btn-sm btn-primary'>Статистика</a>
-                    
-                    <!-- Форма зміни статусу -->
-                    <form method='POST' action='/admin/toggle-survey-status' style='display: inline;' 
-                          onsubmit='return handleFormSubmit(this)'>
-                        <input type='hidden' name='survey_id' value='{$survey['id']}'>
-                        <button type='submit' class='btn btn-sm btn-secondary'>
-                            " . ($survey['is_active'] ? 'Деактивувати' : 'Активувати') . "
-                        </button>
-                    </form>
-                    
-                    <!-- Форма видалення -->
-                    <form method='POST' action='/admin/delete-survey' style='display: inline;' 
-                          onsubmit='return handleDeleteSubmit(this)'>
-                        <input type='hidden' name='survey_id' value='{$survey['id']}'>
-                        <button type='submit' class='btn btn-danger btn-sm'>Видалити</button>
-                    </form>
-                </td>
-            </tr>";
+        <tr>
+            <td>{$survey['id']}</td>
+            <td>
+                <strong>" . $this->escape($survey['title']) . "</strong><br>
+                <small>" . $this->escape(substr($survey['description'], 0, 100)) . "...</small>
+            </td>
+            <td>{$categoryBadge}</td>
+            <td>" . $this->escape($survey['author_name']) . "</td>
+            <td><span class='status-badge {$statusClass}'>{$statusText}</span></td>
+            <td>{$survey['question_count']}</td>
+            <td>{$survey['response_count']}</td>
+            <td>" . date('d.m.Y', strtotime($survey['created_at'])) . "</td>
+            <td class='actions'>
+                <a href='/admin/edit-survey?id={$survey['id']}' class='btn btn-sm btn-info'>Редагувати</a>
+                <a href='/admin/survey-stats?id={$survey['id']}' class='btn btn-sm btn-primary'>Статистика</a>
+                
+                <form method='POST' action='/admin/toggle-survey-status' style='display: inline;' 
+                      onsubmit='return handleFormSubmit(this)'>
+                    <input type='hidden' name='survey_id' value='{$survey['id']}'>
+                    <button type='submit' class='btn btn-sm btn-secondary'>
+                        " . ($survey['is_active'] ? 'Деактивувати' : 'Активувати') . "
+                    </button>
+                </form>
+                
+                <form method='POST' action='/admin/delete-survey' style='display: inline;' 
+                      onsubmit='return handleDeleteSubmit(this)'>
+                    <input type='hidden' name='survey_id' value='{$survey['id']}'>
+                    <button type='submit' class='btn btn-danger btn-sm'>Видалити</button>
+                </form>
+            </td>
+        </tr>
+        
+        <style>
+            .category-mini-badge {
+                display: inline-block;
+                color: white;
+                padding: 0.3rem 0.6rem;
+                border-radius: 12px;
+                font-size: 0.8rem;
+                font-weight: 500;
+                white-space: nowrap;
+            }
+        </style>";
     }
+
+
+    private function renderCategoryFilter(array $categories, int $selected): string
+    {
+        if (empty($categories)) {
+            return '';
+        }
+
+        $options = "<option value='0'" . ($selected == 0 ? ' selected' : '') . ">Всі категорії</option>";
+        foreach ($categories as $category) {
+            $isSelected = $selected == $category['id'] ? ' selected' : '';
+            $options .= "<option value='{$category['id']}'{$isSelected}>{$category['icon']} " . $this->escape($category['name']) . "</option>";
+        }
+
+        return "<select name='category'>{$options}</select>";
+    }
+
 
     private function renderSurveyScript(): string
     {

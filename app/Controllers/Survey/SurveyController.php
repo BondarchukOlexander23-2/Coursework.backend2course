@@ -18,16 +18,25 @@ class SurveyController extends BaseController
     public function index(): void
     {
         $this->safeExecute(function() {
-            $surveys = Survey::getAllActive();
+            $categoryId = $this->getIntParam('category');
 
-            // Завантажуємо View якщо потрібно
+            if ($categoryId > 0) {
+                $surveys = Survey::getByCategory($categoryId);
+            } else {
+                $surveys = Survey::getAllActiveWithCategories();
+            }
+
+            $categories = Category::getAllActive();
+
             if (!class_exists('SurveyListView')) {
                 require_once __DIR__ . '/../../Views/Survey/SurveyListView.php';
             }
 
             $view = new SurveyListView([
                 'title' => 'Доступні опитування',
-                'surveys' => $surveys
+                'surveys' => $surveys,
+                'categories' => $categories,
+                'category' => $categoryId
             ]);
 
             $content = $view->render();
@@ -46,12 +55,15 @@ class SurveyController extends BaseController
         $this->safeExecute(function() {
             $this->requireAuth();
 
+            $categories = Category::getAllActive();
+
             if (!class_exists('SurveyCreateView')) {
                 require_once __DIR__ . '/../../Views/Survey/SurveyCreateView.php';
             }
 
             $view = new SurveyCreateView([
-                'title' => 'Створити нове опитування'
+                'title' => 'Створити нове опитування',
+                'categories' => $categories
             ]);
 
             $content = $view->render();
@@ -72,6 +84,7 @@ class SurveyController extends BaseController
 
             $title = $this->postParam('title', '');
             $description = $this->postParam('description', '');
+            $categoryId = $this->getIntParam('category_id') ?: null;
 
             $errors = $this->validator->validateSurveyData($title, $description);
 
@@ -100,7 +113,7 @@ class SurveyController extends BaseController
             }
 
             try {
-                $surveyId = Survey::create($title, $description, Session::getUserId());
+                $surveyId = $this->createSurveyWithCategory($title, $description, $categoryId);
                 $successMessage = 'Опитування успішно створено! Тепер додайте питання.';
                 $redirectUrl = "/surveys/edit?id={$surveyId}";
 
@@ -115,6 +128,56 @@ class SurveyController extends BaseController
         });
     }
 
+    private function createSurveyWithCategory(string $title, string $description, ?int $categoryId): int
+    {
+        $userId = Session::getUserId();
+
+        $query = "INSERT INTO surveys (title, description, user_id, category_id, is_active) VALUES (?, ?, ?, ?, ?)";
+        return Database::insert($query, [$title, $description, $userId, $categoryId, 1]);
+    }
+
+    public function updateCategory(): void
+    {
+        $this->safeExecute(function() {
+            $this->requireAuth();
+
+            $surveyId = (int)$this->postParam('survey_id', 0);
+            $categoryId = $this->postParam('category_id', '');
+
+            // Якщо порожній рядок, то null
+            $categoryId = $categoryId === '' ? null : (int)$categoryId;
+
+            error_log("DEBUG updateCategory: surveyId={$surveyId}, categoryId=" . ($categoryId ?: 'null'));
+
+            if ($surveyId <= 0) {
+                throw new ValidationException(['Невірний ID опитування']);
+            }
+
+            $survey = $this->validator->validateAndGetSurvey($surveyId);
+            if (!$survey) {
+                throw new NotFoundException('Опитування не знайдено');
+            }
+
+            if (!Survey::isAuthor($surveyId, Session::getUserId())) {
+                throw new ForbiddenException('У вас немає прав для редагування цього опитування');
+            }
+
+            try {
+                $updated = Survey::updateCategory($surveyId, $categoryId);
+
+                error_log("DEBUG updateCategory: updated=" . ($updated ? 'true' : 'false'));
+
+                if ($this->isAjaxRequest()) {
+                    $this->sendAjaxResponse(true, null, 'Категорію оновлено');
+                } else {
+                    $this->redirectWithMessage("/surveys/edit?id={$surveyId}", 'success', 'Категорію оновлено');
+                }
+            } catch (Exception $e) {
+                error_log("DEBUG updateCategory: Exception: " . $e->getMessage());
+                throw new DatabaseException($e->getMessage(), 'Помилка при оновленні категорії');
+            }
+        });
+    }
     /**
      * Показати опитування для проходження
      */
@@ -216,6 +279,9 @@ class SurveyController extends BaseController
             $questions = Question::getBySurveyId($surveyId, true);
             $this->questionService->loadQuestionsWithOptions($questions);
 
+            // ВАЖЛИВО: додаємо категорії!
+            $categories = Category::getAllActive();
+
             if (!class_exists('SurveyEditView')) {
                 require_once __DIR__ . '/../../Views/Survey/SurveyEditView.php';
             }
@@ -223,7 +289,8 @@ class SurveyController extends BaseController
             $view = new SurveyEditView([
                 'title' => 'Редагування опитування',
                 'survey' => $survey,
-                'questions' => $questions
+                'questions' => $questions,
+                'categories' => $categories  // ← ОСЬ ТУТ!
             ]);
 
             $content = $view->render();

@@ -52,6 +52,8 @@ require_once '../app/Controllers/Survey/SurveyRetakeController.php';
 require_once '../app/Services/RetakeService.php';
 require_once '../app/Services/RetakeValidator.php';
 
+require_once '../app/Models/Category.php';
+require_once '../app/Controllers/Admin/AdminCategoriesController.php';
 
 date_default_timezone_set('Europe/Kyiv');
 
@@ -143,7 +145,6 @@ $router->get('/register', 'AuthController', 'showRegister');
 $router->post('/register', 'AuthController', 'register');
 $router->get('/logout', 'AuthController', 'logout');
 
-// ОНОВЛЕННЯ: Маршрути тепер використовують окремі контролери
 // Дашборд адмін-панелі
 $router->get('/admin', 'AdminDashboardController', 'dashboard');
 $router->get('/admin/dashboard', 'AdminDashboardController', 'dashboard');
@@ -169,6 +170,18 @@ $router->get('/api/surveys', 'SurveyController', 'apiIndex');
 $router->get('/api/surveys/{id}', 'SurveyController', 'apiShow');
 $router->post('/api/surveys', 'SurveyController', 'apiStore');
 
+// Управління категоріями (тільки адміни)
+$router->get('/admin/categories', 'AdminCategoriesController', 'categories');
+$router->post('/admin/create-category', 'AdminCategoriesController', 'createCategory');
+$router->post('/admin/update-category', 'AdminCategoriesController', 'updateCategory');
+$router->post('/admin/toggle-category-status', 'AdminCategoriesController', 'toggleCategoryStatus');
+$router->post('/admin/delete-category', 'AdminCategoriesController', 'deleteCategory');
+
+// Оновлення категорії опитування
+$router->post('/surveys/update-category', 'SurveyController', 'updateCategory');
+
+// API для категорій
+$router->get('/api/categories', 'AdminCategoriesController', 'apiCategories');
 
 $router->addGlobalMiddleware(function() {
     $requestUri = $_SERVER['REQUEST_URI'] ?? 'unknown';

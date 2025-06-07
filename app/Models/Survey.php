@@ -166,6 +166,64 @@ class Survey
         return Database::execute($query, [$id]) > 0;
     }
 
+
+    /**
+     * Отримати всі активні опитування з категоріями
+     */
+    public static function getAllActiveWithCategories(): array
+    {
+        $query = "SELECT s.*, u.name as author_name, c.name as category_name, 
+                     c.color as category_color, c.icon as category_icon,
+                     COUNT(DISTINCT q.id) as question_count,
+                     COUNT(DISTINCT sr.id) as response_count
+              FROM surveys s 
+              JOIN users u ON s.user_id = u.id 
+              LEFT JOIN categories c ON s.category_id = c.id
+              LEFT JOIN questions q ON s.id = q.survey_id
+              LEFT JOIN survey_responses sr ON s.id = sr.survey_id
+              WHERE s.is_active = 1 
+              GROUP BY s.id
+              ORDER BY s.created_at DESC";
+
+        return Database::select($query);
+    }
+
+    /**
+     * Отримати опитування по категорії
+     */
+    public static function getByCategory(int $categoryId): array
+    {
+        $query = "SELECT s.*, u.name as author_name,
+                     COUNT(DISTINCT q.id) as question_count,
+                     COUNT(DISTINCT sr.id) as response_count
+              FROM surveys s 
+              JOIN users u ON s.user_id = u.id 
+              LEFT JOIN questions q ON s.id = q.survey_id
+              LEFT JOIN survey_responses sr ON s.id = sr.survey_id
+              WHERE s.is_active = 1 AND s.category_id = ?
+              GROUP BY s.id
+              ORDER BY s.created_at DESC";
+
+        return Database::select($query, [$categoryId]);
+    }
+
+    /**
+     * Оновити категорію опитування
+     */
+    public static function updateCategory(int $surveyId, ?int $categoryId): bool
+    {
+        try {
+            $query = "UPDATE surveys SET category_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+            $result = Database::execute($query, [$categoryId, $surveyId]);
+
+            error_log("DEBUG Survey::updateCategory: surveyId={$surveyId}, categoryId=" . ($categoryId ?: 'null') . ", result={$result}");
+
+            return $result > 0;
+        } catch (Exception $e) {
+            error_log("ERROR Survey::updateCategory: " . $e->getMessage());
+            throw $e;
+        }
+    }
     /**
      * Отримати розширену статистику по опитуванню
      */

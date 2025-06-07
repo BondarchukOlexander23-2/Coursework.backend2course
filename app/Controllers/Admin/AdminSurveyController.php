@@ -30,18 +30,22 @@ class AdminSurveyController extends BaseController
             $page = $this->getIntParam('page', 1);
             $search = $this->getStringParam('search');
             $status = $this->getStringParam('status', 'all');
+            $categoryId = $this->getIntParam('category');
 
-            $surveys = $this->adminService->getSurveys($page, $search, $status);
-            $totalSurveys = $this->adminService->getTotalSurveysCount($search, $status);
+            $surveys = $this->adminService->getSurveysWithCategories($page, $search, $status, $categoryId);
+            $totalSurveys = $this->adminService->getTotalSurveysCount($search, $status, $categoryId);
             $totalPages = ceil($totalSurveys / 20);
+            $categories = Category::getAll();
 
             $view = new SurveysView([
                 'title' => 'Управління опитуваннями',
                 'surveys' => $surveys,
+                'categories' => $categories,
                 'currentPage' => $page,
                 'totalPages' => $totalPages,
                 'search' => $search,
-                'status' => $status
+                'status' => $status,
+                'category' => $categoryId
             ]);
             $content = $view->render();
 

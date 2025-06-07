@@ -73,4 +73,23 @@ class SurveyCreateView extends BaseView
                     });
                 </script>";
     }
+
+    private function renderCategorySelect(array $categories, int $selectedId = null): string
+    {
+        if (empty($categories)) return '';
+
+        $options = "<option value=''>Оберіть категорію</option>";
+        foreach ($categories as $category) {
+            $selected = $selectedId == $category['id'] ? ' selected' : '';
+            $options .= "<option value='{$category['id']}'{$selected}>{$category['icon']} " . $this->escape($category['name']) . "</option>";
+        }
+
+        return "
+        <div class='form-group'>
+            <label for='category_id'>Категорія:</label>
+            <select id='category_id' name='category_id' class='form-control'>
+                {$options}
+            </select>
+        </div>";
+    }
 }
