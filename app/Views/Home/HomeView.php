@@ -47,7 +47,6 @@ class HomeView extends BaseView
     {
         return "
             <header class='header'>
-                <div class='container'>
                     <div class='header-content'>
                         <div class='logo'>
                             <a href='/'>
@@ -64,7 +63,6 @@ class HomeView extends BaseView
                         <div class='header-auth'>
                             " . $this->renderAuthButtons() . "
                         </div>
-                    </div>
                 </div>
             </header>";
     }
@@ -161,14 +159,14 @@ class HomeView extends BaseView
                             <p>Працює на всіх пристроях - від смартфонів до комп'ютерів</p>
                         </div>
                         <div class='feature-card'>
-                            <div class='feature-icon'>⭐</div>
-                            <h3>Безкоштовно</h3>
-                            <p>Користуйтесь всіма можливостями платформи абсолютно безкоштовно</p>
+                            <div class='feature-icon'>💻</div>
+                            <h3>Сучасність</h3>
+                            <p>Проєкт буде покращуватись надалі</p>
                         </div>
                         <div class='feature-card'>
                             <div class='feature-icon'>🤝</div>
                             <h3>Підтримка 24/7</h3>
-                            <p>Наша команда завжди готова допомогти вам</p>
+                            <p>Ви не залишитесь без підтримки!</p>
                         </div>
                     </div>
                 </div>

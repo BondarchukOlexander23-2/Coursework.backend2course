@@ -24,6 +24,7 @@ body {
     background: none;
     box-shadow: none;
     max-width: 1200px;
+    margin: 0 auto;
     padding: 0 20px;
 }
 
@@ -53,15 +54,20 @@ body:not(.home-page) .container {
     position: sticky;
     top: 0;
     z-index: 1000;
+    width: 100%;
 }
 
 .header-content {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
-    padding: 1rem 0;
-    max-width: 1200px;
-    margin: 0 auto;
+    padding: 1rem 20px;
+    max-width: 100%;
+    gap: 3rem;
+}
+
+.logo {
+    flex-shrink: 0;
 }
 
 .logo a {
@@ -81,6 +87,7 @@ body:not(.home-page) .container {
 .nav {
     display: flex;
     gap: 2rem;
+    flex-shrink: 0;
 }
 
 .nav-link {
@@ -114,6 +121,7 @@ body:not(.home-page) .container {
     display: flex;
     align-items: center;
     gap: 1rem;
+    margin-left: auto;
 }
 
 .user-menu {
@@ -132,16 +140,17 @@ body:not(.home-page) .container {
     gap: 0.5rem;
 }
 
-/* === HERO СЕКЦІЯ === */
+
 .hero-section {
     display: flex;
     align-items: center;
     min-height: 80vh;
-    padding: 4rem 0;
+    padding: 4rem 20px;
     position: relative;
     overflow: hidden;
+    width: 100%;
+    margin: 0 auto;
 }
-
 .hero-content {
     flex: 1;
     max-width: 600px;
@@ -307,6 +316,14 @@ body:not(.home-page) .container {
     justify-content: center;
     gap: 1rem;
     flex-wrap: wrap;
+}
+
+.features-section .container,
+.cta-section .container,
+.footer .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
 }
 
 /* === ФУТЕР === */

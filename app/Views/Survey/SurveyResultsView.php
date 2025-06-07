@@ -86,7 +86,7 @@ class SurveyResultsView extends BaseView
         $levelClass = $this->getResultLevelClass($percentage);
 
         return "
-            <div class='user-result highlight survey-summary'>
+            <div class='user-result survey-summary'>
                 <h2 style='color: white; margin-bottom: 1.5rem; text-align: center;'>🏆 Ваш результат</h2>
                 <div class='score-display'>
                     <div style='text-align: center;'>
