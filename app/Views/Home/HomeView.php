@@ -176,7 +176,7 @@ class HomeView extends BaseView
     private function renderCtaSection(): string
     {
         $ctaButtons = !Session::isLoggedIn() ?
-            "<a href='/register' class='btn btn-success btn-large'>Зареєструватися безкоштовно</a>
+            "<a href='/register' class='btn btn-success btn-large'>Зареєструватися</a>
              <a href='/login' class='btn btn-outline-light btn-large'>Увійти</a>" :
             "<a href='/surveys/create' class='btn btn-success btn-large'>Створити перше опитування</a>
              <a href='/surveys' class='btn btn-outline-light btn-large'>Переглянути опитування</a>";

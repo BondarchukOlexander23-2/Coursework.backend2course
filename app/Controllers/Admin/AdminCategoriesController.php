@@ -162,7 +162,7 @@ class AdminCategoriesController extends BaseController
 
             $id = (int)$this->postParam('id', 0);
 
-            if ($id <= 1) { // Не можна видалити загальну категорію
+            if ($id <= 0) {
                 if ($this->isAjaxRequest()) {
                     $this->sendAjaxResponse(false, ['Неможливо видалити цю категорію'], 'Помилка');
                 } else {

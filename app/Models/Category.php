@@ -127,11 +127,10 @@ class Category
      */
     public static function delete(int $id): bool
     {
-        // Переносимо опитування в загальну категорію (ID = 1)
-        Database::execute("UPDATE surveys SET category_id = 1 WHERE category_id = ?", [$id]);
-        return Database::execute("DELETE FROM categories WHERE id = ? AND id != 1", [$id]) > 0;
-    }
 
+        Database::execute("UPDATE surveys SET category_id = NULL WHERE category_id = ?", [$id]);
+        return Database::execute("DELETE FROM categories WHERE id = ?", [$id]) > 0;
+    }
     /**
      * Getters
      */

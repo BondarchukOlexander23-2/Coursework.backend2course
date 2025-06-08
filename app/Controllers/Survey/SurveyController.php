@@ -358,7 +358,7 @@ class SurveyController extends BaseController
                 'text' => $this->postParam('question_text', ''),
                 'type' => $this->postParam('question_type', ''),
                 'required' => (bool)$this->postParam('is_required'),
-                'points' => $this->getIntParam('points', 1), // Це OK, бо points може бути в GET або POST
+                'points' => $this->postIntParam('points', 1),
                 'correct_answer' => $this->postParam('correct_answer', '') ?: null,
                 'options' => $this->postParam('options', []),
                 'correct_options' => $this->postParam('correct_options', [])

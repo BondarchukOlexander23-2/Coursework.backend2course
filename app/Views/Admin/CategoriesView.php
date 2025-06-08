@@ -51,7 +51,7 @@ class CategoriesView extends BaseView
     {
         $statusClass = $category['is_active'] ? 'status-active' : 'status-inactive';
         $statusText = $category['is_active'] ? 'Активна' : 'Неактивна';
-        $protectedClass = $category['id'] == 1 ? 'protected-category' : '';
+        $protectedClass = $category['id'] == 0 ? 'protected-category' : '';
 
         return "
             <tr class='{$protectedClass}'>
@@ -72,7 +72,7 @@ class CategoriesView extends BaseView
                     <button onclick='editCategory({$category['id']})' class='btn btn-sm btn-primary'>
                         Редагувати
                     </button>
-                    " . ($category['id'] != 1 ? "
+                    " . ($category['id'] != 0 ? "
                     <form method='POST' action='/admin/toggle-category-status' style='display: inline;' 
                           onsubmit='return handleToggleStatus(this)'>
                         <input type='hidden' name='id' value='{$category['id']}'>

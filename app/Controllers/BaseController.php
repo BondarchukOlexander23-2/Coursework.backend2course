@@ -99,6 +99,11 @@ abstract class BaseController
         return trim($this->getParam($key, $default));
     }
 
+    protected function postIntParam(string $key, int $default = 0): int
+    {
+        $value = $this->postParam($key, $default);
+        return is_numeric($value) ? (int)$value : $default;
+    }
     /**
      * Try-catch wrapper для методів контролера
      */
